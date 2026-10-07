@@ -1,0 +1,93 @@
+__include__: [
+  '../dataset/visdrone_detection.yml',
+  '../runtime.yml',
+  './include/dataloader_deim_visdrone.yml',
+  './include/optimizer.yml',
+  './include/butr_hgnetv2.yml',
+]
+
+output_dir: ./output/deim_s_visdrone
+
+
+BUTR:
+  backbone: HGNetv2
+  decoder: DFINETransformer
+
+HGNetv2:
+  name: 'B0'
+  return_idx: [0, 1, 2, 3]
+  freeze_at: -1
+  freeze_norm: False
+  use_lab: True
+
+DFINETransformer:
+  activation: silu
+  mlp_act: silu
+  num_layers: 3  # 5 6
+  eval_idx: -1  # -2 -3
+  feat_channels: [256, 256, 256, 256]
+  feat_strides: [4, 8, 16, 32]
+  num_points: [4, 4, 4, 4]
+  num_levels: 4
+  num_queries: 400
+
+HybridEncoder:
+  in_channels: [64, 256, 512, 1024]
+  feat_strides: [4, 8, 16, 32]
+  use_encoder_idx: [3] # Only not deformable
+  use_hybrid: True
+  num_encoder_layers: 1
+  use_deformable: False
+  enc_n_points: 6 # Only deformable
+  hidden_dim: 256
+  depth_mult: .34
+  expansion: 0.5
+  num_feature_levels: 4
+
+
+optimizer:
+  type: AdamW
+  params:
+    -
+      params: '^(?=.*backbone)(?!.*norm|bn).*$'
+      lr: 0.00002
+    -
+      params: '^(?=.*backbone)(?=.*norm|bn).*$'
+      lr: 0.00002
+      weight_decay: 0.
+    -
+      params: '^(?=.*(?:encoder|decoder))(?=.*(?:norm|bn|bias)).*$'
+      weight_decay: 0.
+
+  lr: 0.0002
+  betas: [0.9, 0.999]
+  weight_decay: 0.000065
+
+
+# Increase to search for the optimal ema
+epoches: 120
+
+# Our LR-Scheduler
+lrsheduler: flatcosine
+lr_gamma: 0.5
+warmup_iter: 4000
+flat_epoch: 70
+no_aug_epoch: 10
+
+
+train_dataloader:
+  dataset:
+    transforms:
+      policy:
+        epoch: [10, 70, 110]
+  collate_fn:
+    mixup_epochs: [10, 70]
+    stop_epoch: 110
+#    ema_restart_decay: 0.9999
+#    base_size_repeat: 2
+
+# Our Loss
+#DEIMCriterion:
+#  weight_dict: {loss_mal: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5}
+#  losses: ['mal', 'boxes', 'local']
+#  gamma: 1.5

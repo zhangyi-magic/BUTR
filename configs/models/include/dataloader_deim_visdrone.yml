@@ -1,0 +1,45 @@
+
+train_dataloader:
+  dataset:
+    transforms:
+      ops:
+        - {type: Mosaic, output_size: 400, rotation_range: 10, translation_range: [ 0.1, 0.1 ], scaling_range: [0.5, 1.5],
+           probability: 1.0, fill_value: 0, use_cache: False, max_cached_images: 50, random_pop: True }
+        - {type: RandomPhotometricDistort, p: 0.5}
+        - {type: RandomZoomOut, fill: 0}
+        - {type: RandomIoUCrop, p: 0.8}
+        - {type: SanitizeBoundingBoxes, min_size: 1}
+        - {type: RandomHorizontalFlip}
+        - {type: Resize, size: [800, 800], }
+        - {type: SanitizeBoundingBoxes, min_size: 1}
+        - {type: ConvertPILImage, dtype: 'float32', scale: True}
+        - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
+      policy:
+        name: stop_epoch
+        epoch: [10, 70, 110]
+        ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop', 'Mosaic']
+      mosaic_prob: 0.5
+
+  collate_fn:
+    type: BatchImageCollateFunction
+    base_size: 800
+    base_size_repeat: 2
+    mixup_prob: 0.5
+    mixup_epochs: [10, 70]
+    stop_epoch: 110
+
+  shuffle: True
+  total_batch_size: 16
+  num_workers: 4
+
+
+val_dataloader:
+  dataset:
+    transforms:
+      ops:
+        - {type: Resize, size: [800, 800], }
+        - {type: ConvertPILImage, dtype: 'float32', scale: True}
+  shuffle: False
+  drop_last: False
+  total_batch_size: 8
+  num_workers: 4

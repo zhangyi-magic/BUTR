@@ -1,0 +1,31 @@
+# Python and local development
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+*.so
+*.pyd
+.venv/
+.ruff_cache/
+.pytest_cache/
+.idea/
+.DS_Store
+
+# Root-level PDFs are local reference materials
+/*.pdf
+
+# Local data, weights, and experiment artifacts
+butr-env-info/
+data/
+weight/**
+!weight/README.md
+output/
+logs/
+tmp/
+*.pth
+*.pt
+*.onnx
+*.engine
+*.log
+visualize_all/
+torch_results.*

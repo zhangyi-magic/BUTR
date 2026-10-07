@@ -1,0 +1,8 @@
+# COCO inference-time budget settings. Override --safety for each model.
+# D-FINE S/M/L/X: 3.0 / 4.5 / 3.5 / 4.5.
+# DEIM S/M/L/X: 6.5 / 8.5 / 8.0 / 6.0.
+budgeter:
+  min_queries: 100
+  max_queries: 500
+  safety: 6.0
+  min_prob: 1.0e-6
