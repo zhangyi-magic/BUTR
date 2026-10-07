@@ -46,18 +46,18 @@ AI-TOD-v2 and VisDrone results use 800 × 800 inputs, with training on trainval 
 
 BUTR is applied to official D-FINE and DEIM checkpoints without retraining. Each pair shares weights and preprocessing. Evaluation uses all 5,000 COCO val2017 images, 640 × 640 inputs, FP32, and batch size 1 per GPU.
 
-| Model | AP<br>Base | AP<br>+BUTR | Params | GFLOPs<br>Base | GFLOPs<br>+BUTR | Queries<br>+BUTR | Safety |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| D&#8209;FINE&#8209;S | 48.5 | 48.6 | 10.2M | 25.2 | ~24.6 | 232.47 | 3.0 |
-| D&#8209;FINE&#8209;M | 52.3 | 52.4 | 19.3M | 56.7 | ~56.6 | 288.82 | 4.5 |
-| D&#8209;FINE&#8209;L | 54.0 | 54.1 | 30.8M | 91.0 | ~90.2 | 253.33 | 3.5 |
-| D&#8209;FINE&#8209;X | 55.8 | 55.9 | 61.6M | 202.5 | ~201.7 | 252.90 | 4.5 |
-| DEIM&#8209;S | 49.0 | 49.0 | 10.2M | 25.2 | ~24.6 | 238.57 | 6.5 |
-| DEIM&#8209;M | 52.7 | 52.8 | 19.3M | 56.7 | ~55.9 | 236.36 | 8.5 |
-| DEIM&#8209;L | 54.7 | 54.9 | 30.8M | 91.1 | ~89.8 | 223.56 | 8.0 |
-| DEIM&#8209;X | 56.5 | 56.6 | 61.7M | 202.7 | ~200.6 | 183.48 | 6.0 |
+| Model | AP<br>baseline | AP<br>+&nbsp;BUTR | Parameters | GFLOPs<br>baseline | GFLOPs<br>+&nbsp;BUTR | Mean queries<br>+&nbsp;BUTR | Safety |
+| --- | ---: | ---: | ---: | ---: | ---: |----------------------------:| ---: |
+| D&#8209;FINE&#8209;S | 48.5 | 48.6 | 10.2M | 25.2 | ~24.6 | 232 | 3.0 |
+| D&#8209;FINE&#8209;M | 52.3 | 52.4 | 19.3M | 56.7 | ~56.6 | 289 | 4.5 |
+| D&#8209;FINE&#8209;L | 54.0 | 54.1 | 30.8M | 91.0 | ~90.2 | 253 | 3.5 |
+| D&#8209;FINE&#8209;X | 55.8 | 55.9 | 61.6M | 202.5 | ~201.7 | 253 | 4.5 |
+| DEIM&#8209;S | 49.0 | 49.0 | 10.2M | 25.2 | ~24.6 | 239 | 6.5 |
+| DEIM&#8209;M | 52.7 | 52.8 | 19.3M | 56.7 | ~55.9 | 236 | 8.5 |
+| DEIM&#8209;L | 54.7 | 54.9 | 30.8M | 91.1 | ~89.8 | 227 | 8.0 |
+| DEIM&#8209;X | 56.5 | 56.6 | 61.7M | 202.7 | ~200.6 | 183 | 6.0 |
 
-Base denotes the fixed-query baseline; +BUTR denotes the budgeted variant. Queries reports the mean decoded query count. Baselines use 300 queries; BUTR uses `[100, 500]` and `min_prob=1e-6`. GFLOPs use `calflops 0.3.2` on the deployed model, excluding data loading and post-processing. Dynamic costs are averaged over the measured query-count histogram. See [COCO evaluation and profiling](docs/coco.md).
+Baselines use 300 queries; BUTR uses `[100, 500]` and `min_prob=1e-6`. GFLOPs use `calflops 0.3.2` on the deployed model, excluding data loading and post-processing. Dynamic costs are averaged over the measured query-count histogram. See [COCO evaluation and profiling](docs/coco.md).
 
 ## Installation
 
