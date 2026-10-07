@@ -1,6 +1,6 @@
-<h1 align="center">[NeurIPS 2026]<br>Dynamic Query as Budgeting for Tiny Object Detection</h1>
+<h1 align="center">Dynamic Query as Budgeting for Tiny Object Detection</h1>
 
-<p align="center">Official implementation of BUTR.</p>
+<p align="center">Official implementation of <a href="">BUTR</a> (NeurIPS 2026).</p>
 
 <p align="center">Yi Zhang, Di Xiong, Ge Gao, Xiangyue Zhang, Yihang Qiu, Yuxuan Zhou, and Shuo Chen<br>
 REMI Group, PCALab@NJU, Nanjing University</p>
@@ -13,7 +13,7 @@ REMI Group, PCALab@NJU, Nanjing University</p>
 
 ## Updates
 
-- [2026.10] Repository created; code refactoring underway.
+- [2026.10] Repository created; code refactored; retrained checkpoints coming soon.
 - [2026.09] Our paper has been accepted at NeurIPS 2026!
 
 ## Overview
@@ -24,14 +24,21 @@ BUTR treats dynamic queries as decoder budgeting: a lightweight, non-learned bud
 
 AI-TOD-v2 and VisDrone results use 800 × 800 inputs, with training on trainval and evaluation on test.
 
-| Dataset | Model | AP | Parameters | GFLOPs | Config |
-| --- | --- | ---: | ---: | ---: | --- |
-| AI-TOD-v2 | BUTR-S | 32.6 | 11.6M | ~112.5 | [S](configs/models/BUTR-S-AITOD.yml) |
-| AI-TOD-v2 | BUTR-M | 34.6 | 22.3M | ~244.8 | [M](configs/models/BUTR-M-AITOD.yml) |
-| AI-TOD-v2 | BUTR-L | 35.7 | 31.9M | ~326.1 | [L](configs/models/BUTR-L-AITOD.yml) |
-| VisDrone | BUTR-S | 26.7 | 11.6M | ~114.9 | [S](configs/models/BUTR-S-VisDrone.yml) |
-| VisDrone | BUTR-M | 29.4 | 22.3M | ~245.8 | [M](configs/models/BUTR-M-VisDrone.yml) |
-| VisDrone | BUTR-L | 29.8 | 34.5M | ~329.5 | [L](configs/models/BUTR-L-VisDrone.yml) |
+### AI-TOD-v2
+
+| Model | AP | Parameters | GFLOPs | Config |
+| --- | ---: | ---: | ---: | --- |
+| BUTR-S | 32.6 | 11.6M | ~112.5 | [S](configs/models/BUTR-S-AITOD.yml) |
+| BUTR-M | 34.6 | 22.3M | ~244.8 | [M](configs/models/BUTR-M-AITOD.yml) |
+| BUTR-L | 35.7 | 31.9M | ~326.1 | [L](configs/models/BUTR-L-AITOD.yml) |
+
+### VisDrone
+
+| Model | AP | Parameters | GFLOPs | Config |
+| --- | ---: | ---: | ---: | --- |
+| BUTR-S | 26.7 | 11.6M | ~114.9 | [S](configs/models/BUTR-S-VisDrone.yml) |
+| BUTR-M | 29.4 | 22.3M | ~245.8 | [M](configs/models/BUTR-M-VisDrone.yml) |
+| BUTR-L | 29.8 | 34.5M | ~329.5 | [L](configs/models/BUTR-L-VisDrone.yml) |
 
 `~` marks approximate GFLOPs for input-dependent query budgets. AI-TOD-v2 uses 160 training epochs and queries in `[300, 1500]`; VisDrone uses 120 epochs and `[250, 500]`.
 
@@ -39,18 +46,18 @@ AI-TOD-v2 and VisDrone results use 800 × 800 inputs, with training on trainval 
 
 BUTR is applied to official D-FINE and DEIM checkpoints without retraining. Each pair shares weights and preprocessing. Evaluation uses all 5,000 COCO val2017 images, 640 × 640 inputs, FP32, and batch size 1 per GPU.
 
-| Model | AP baseline | AP + BUTR | Parameters | GFLOPs baseline | GFLOPs + BUTR | Mean queries + BUTR | Safety |
+| Model | AP<br>Base | AP<br>+BUTR | Params | GFLOPs<br>Base | GFLOPs<br>+BUTR | Queries<br>+BUTR | Safety |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| D-FINE-S | 48.5 | 48.6 | 10.2M | 25.2 | ~24.6 | 232.47 | 3.0 |
-| D-FINE-M | 52.3 | 52.4 | 19.3M | 56.7 | ~56.6 | 288.82 | 4.5 |
-| D-FINE-L | 54.0 | 54.1 | 30.8M | 91.0 | ~90.2 | 253.33 | 3.5 |
-| D-FINE-X | 55.8 | 55.9 | 61.6M | 202.5 | ~201.7 | 252.90 | 4.5 |
-| DEIM-S | 49.0 | 49.0 | 10.2M | 25.2 | ~24.6 | 238.57 | 6.5 |
-| DEIM-M | 52.7 | 52.8 | 19.3M | 56.7 | ~55.9 | 236.36 | 8.5 |
-| DEIM-L | 54.7 | 54.9 | 30.8M | 91.1 | ~89.8 | 223.56 | 8.0 |
-| DEIM-X | 56.5 | 56.6 | 61.7M | 202.7 | ~200.6 | 183.48 | 6.0 |
+| D&#8209;FINE&#8209;S | 48.5 | 48.6 | 10.2M | 25.2 | ~24.6 | 232.47 | 3.0 |
+| D&#8209;FINE&#8209;M | 52.3 | 52.4 | 19.3M | 56.7 | ~56.6 | 288.82 | 4.5 |
+| D&#8209;FINE&#8209;L | 54.0 | 54.1 | 30.8M | 91.0 | ~90.2 | 253.33 | 3.5 |
+| D&#8209;FINE&#8209;X | 55.8 | 55.9 | 61.6M | 202.5 | ~201.7 | 252.90 | 4.5 |
+| DEIM&#8209;S | 49.0 | 49.0 | 10.2M | 25.2 | ~24.6 | 238.57 | 6.5 |
+| DEIM&#8209;M | 52.7 | 52.8 | 19.3M | 56.7 | ~55.9 | 236.36 | 8.5 |
+| DEIM&#8209;L | 54.7 | 54.9 | 30.8M | 91.1 | ~89.8 | 223.56 | 8.0 |
+| DEIM&#8209;X | 56.5 | 56.6 | 61.7M | 202.7 | ~200.6 | 183.48 | 6.0 |
 
-Baselines use 300 queries; BUTR uses `[100, 500]` and `min_prob=1e-6`. GFLOPs use `calflops 0.3.2` on the deployed model, excluding data loading and post-processing. Dynamic costs are averaged over the measured query-count histogram. See [COCO evaluation and profiling](docs/coco.md).
+Base denotes the fixed-query baseline; +BUTR denotes the budgeted variant. Queries reports the mean decoded query count. Baselines use 300 queries; BUTR uses `[100, 500]` and `min_prob=1e-6`. GFLOPs use `calflops 0.3.2` on the deployed model, excluding data loading and post-processing. Dynamic costs are averaged over the measured query-count histogram. See [COCO evaluation and profiling](docs/coco.md).
 
 ## Installation
 
