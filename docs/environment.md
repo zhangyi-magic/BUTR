@@ -1,6 +1,6 @@
 # Training environment and installation checks
 
-The installation commands in the [README](../README.md#installation) use the following training environment.
+The installation commands in the [README](../README.md#installation) reproduce the Python and PyTorch versions in the reference training environment below. The operating system, compiler, and hardware entries describe that environment; the compiler must support C++17, but its exact patch version is not required.
 
 | Component | Version |
 | --- | --- |
@@ -18,9 +18,11 @@ The PyTorch build uses CUDA 11.8 libraries, independently of the system CUDA too
 
 ## Dependency scope
 
-The Conda commands use `--override-channels` to select only the listed public channels, independently of machine-specific defaults. This also avoids pulling in Anaconda default channels that may require a separate Terms of Service acceptance step.
+The Conda commands use full channel URLs together with `--override-channels`. Full URLs bypass channel-name mappings from `channel_alias` or `custom_channels`; `--override-channels` alone only replaces the configured channel list. This avoids requesting an unavailable mirror such as a missing `nvidia` channel, without changing the machine's global Conda configuration. The commands also avoid Anaconda default channels that may require a separate Terms of Service acceptance step.
 
 PyTorch and torchvision are selected from the `pytorch` channel with CUDA build constraints. Installing `pytorch-cuda=11.8` alone does not guarantee that the solver selects a CUDA PyTorch build; keep the build constraints in the README installation command.
+
+The Conda commands are joined with `&&` so a failed step stops that block. Run the pip block only after the Conda installation and compiler setup succeed. If the `BUTR` environment already exists, skip `conda create` and activate it. If the PyTorch installation failed, rerun the `conda install` step with the full URLs. The requirements pin the PyTorch version but do not select its CUDA build.
 
 The single root [requirements.txt](../requirements.txt) pins direct project dependencies. It covers the main training and evaluation pipeline, PyTorch image/video inference, Grain preprocessing, profiling, and the declared dependencies of the DEIM checkout used by the COCO plug-in.
 
@@ -30,11 +32,32 @@ Torchaudio and packages for unrelated or optional workflows are not required by 
 
 ## Build prerequisites
 
-For Python 3.10, the published [faster-coco-eval-aitod 1.0.2 files](https://pypi.org/project/faster-coco-eval-aitod/1.0.2/#files) require building the extension from source. A working C++ compiler and Python development headers must be available. On Ubuntu, `build-essential` provides the compiler; a Conda Python installation normally includes its Python headers. Verify that the compiler is accessible before installing the requirements:
+For Python 3.10, the published [faster-coco-eval-aitod 1.0.2 files](https://pypi.org/project/faster-coco-eval-aitod/1.0.2/#files) require building the extension from source. A working C++17 compiler and Python development headers must be available. A Conda Python installation normally includes its Python headers. On Ubuntu, install the compiler if `g++ --version` fails:
 
 ```bash
+sudo apt-get update && sudo apt-get install -y build-essential &&
 g++ --version
 ```
+
+Without administrator privileges, install a compiler in the existing BUTR environment instead. Conda's [compiler activation scripts](https://conda-forge.org/docs/user/faq/) set `CC` and `CXX`; reactivate the environment after installing the toolchain:
+
+```bash
+conda activate BUTR &&
+conda install "gxx_linux-64=12" --override-channels \
+  -c https://conda.anaconda.org/conda-forge -y &&
+conda deactivate &&
+conda activate BUTR &&
+"$CXX" --version
+```
+
+The Conda compiler may have a prefixed executable name, so use `"$CXX"` to check it. Once either compiler installation succeeds, continue from the repository root:
+
+```bash
+python -m pip install -r requirements.txt &&
+python -m pip check
+```
+
+An error such as `No such file or directory: 'g++'` indicates that the build could not find the compiler. Fixing the compiler setup and rerunning pip is sufficient; already installed dependencies do not need to be removed.
 
 The primary BUTR configurations use PyTorch deformable attention and do not require building `src/zoo/models/ops/`. That optional extension has a separate CUDA compilation requirement.
 

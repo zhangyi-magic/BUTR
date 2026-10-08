@@ -2,8 +2,11 @@
 
 <p align="center">Official implementation of <a href="">BUTR</a> (NeurIPS 2026).</p>
 
-<p align="center">Yi Zhang, Di Xiong, Ge Gao, Xiangyue Zhang, Yihang Qiu, Yuxuan Zhou, and Shuo Chen<br>
-REMI Group, PCALab@NJU, Nanjing University</p>
+<p align="center"><em>A remarkably simple approach to robust dynamic query budgeting for real-time tiny (and dense) object detection.</em></p>
+
+<p align="center"><a href="https://zhangyi-magic.github.io/">Yi Zhang</a>, Di Xiong, Ge Gao, Xiangyue Zhang, Yihang Qiu, Yuxuan Zhou, and <a href="https://shuochenya.github.io/">Shuo Chen</a><br>
+REMI Group, PCALab@NJU, Nanjing University<br>
+📧 Corresponding author: <a href="mailto:shuo.chen@nju.edu.cn">shuo.chen@nju.edu.cn</a></p>
 
 <p align="center"><strong>If you find BUTR useful, please consider giving this repository a star ⭐.</strong></p>
 
@@ -26,19 +29,19 @@ AI-TOD-v2 and VisDrone results use 800 × 800 inputs, with training on trainval 
 
 ### AI-TOD-v2
 
-| Model | AP | Parameters | GFLOPs | Config |
-| --- | ---: | ---: | ---: | --- |
-| BUTR-S | 32.6 | 11.6M | ~112.5 | [S](configs/models/BUTR-S-AITOD.yml) |
-| BUTR-M | 34.6 | 22.3M | ~244.8 | [M](configs/models/BUTR-M-AITOD.yml) |
-| BUTR-L | 35.7 | 31.9M | ~326.1 | [L](configs/models/BUTR-L-AITOD.yml) |
+| Model | AP | #Params | GFLOPs | Config |
+| --- | ---: | ---: | ---: | :---: |
+| BUTR-S | 32.6 | 11.6M | ~112.5 | [yml](configs/models/BUTR-S-AITOD.yml) |
+| BUTR-M | 34.6 | 22.3M | ~244.8 | [yml](configs/models/BUTR-M-AITOD.yml) |
+| BUTR-L | 35.7 | 31.9M | ~326.1 | [yml](configs/models/BUTR-L-AITOD.yml) |
 
 ### VisDrone
 
-| Model | AP | Parameters | GFLOPs | Config |
-| --- | ---: | ---: | ---: | --- |
-| BUTR-S | 26.7 | 11.6M | ~114.9 | [S](configs/models/BUTR-S-VisDrone.yml) |
-| BUTR-M | 29.4 | 22.3M | ~245.8 | [M](configs/models/BUTR-M-VisDrone.yml) |
-| BUTR-L | 29.8 | 34.5M | ~329.5 | [L](configs/models/BUTR-L-VisDrone.yml) |
+| Model | AP | #Params | GFLOPs | Config |
+| --- | ---: | ---: | ---: | :---: |
+| BUTR-S | 26.7 | 11.6M | ~114.9 | [yml](configs/models/BUTR-S-VisDrone.yml) |
+| BUTR-M | 29.4 | 22.3M | ~245.8 | [yml](configs/models/BUTR-M-VisDrone.yml) |
+| BUTR-L | 29.8 | 34.5M | ~329.5 | [yml](configs/models/BUTR-L-VisDrone.yml) |
 
 `~` marks approximate GFLOPs for input-dependent query budgets. AI-TOD-v2 uses 160 training epochs and queries in `[300, 1500]`; VisDrone uses 120 epochs and `[250, 500]`.
 
@@ -46,7 +49,7 @@ AI-TOD-v2 and VisDrone results use 800 × 800 inputs, with training on trainval 
 
 BUTR is applied to official D-FINE and DEIM checkpoints without retraining. Each pair shares weights and preprocessing. Evaluation uses all 5,000 COCO val2017 images, 640 × 640 inputs, FP32, and batch size 1 per GPU.
 
-| Model | AP<br>baseline | AP<br>+&nbsp;BUTR | Parameters | GFLOPs<br>baseline | GFLOPs<br>+&nbsp;BUTR | Mean queries<br>+&nbsp;BUTR | Safety |
+| Model | AP<br>baseline | AP<br>+&nbsp;BUTR | #Params | GFLOPs<br>baseline | GFLOPs<br>+&nbsp;BUTR | Mean queries<br>+&nbsp;BUTR | Safety |
 | --- | ---: | ---: | ---: | ---: | ---: |----------------------------:| ---: |
 | D&#8209;FINE&#8209;S | 48.5 | 48.6 | 10.2M | 25.2 | ~24.6 | 232 | 3.0 |
 | D&#8209;FINE&#8209;M | 52.3 | 52.4 | 19.3M | 56.7 | ~56.6 | 289 | 4.5 |
@@ -61,18 +64,29 @@ Baselines use 300 queries; BUTR uses `[100, 500]` and `min_prob=1e-6`. GFLOPs us
 
 ## Installation
 
-The training environment uses Ubuntu 22.04, Python 3.10.14, PyTorch 2.4.0, torchvision 0.19.0, and CUDA 11.8.
+The reference training environment is Ubuntu 22.04, Python 3.10.14, PyTorch 2.4.0, torchvision 0.19.0, and CUDA 11.8.
+
+Before installing Python dependencies, ensure a C++17 compiler is available (`g++ --version`). On Ubuntu, install it with `sudo apt-get update && sudo apt-get install -y build-essential`. For a Conda compiler without administrator privileges, see [build prerequisites](docs/environment.md#build-prerequisites).
 
 ```bash
-conda create -n BUTR python=3.10.14 --override-channels -c conda-forge -y
-conda activate BUTR
-conda install "pytorch::pytorch=2.4.0=*cuda11.8*" "pytorch::torchvision=0.19.0=*cu118*" pytorch-cuda=11.8 \
-  numpy=2.2.6 pyyaml=6.0.3 --override-channels -c pytorch -c nvidia -c conda-forge -y
-python -m pip install -r requirements.txt
+conda create -n BUTR python=3.10.14 --override-channels \
+  -c https://conda.anaconda.org/conda-forge -y &&
+conda activate BUTR &&
+conda install "pytorch=2.4.0=*cuda11.8*" "torchvision=0.19.0=*cu118*" pytorch-cuda=11.8 \
+  numpy=2.2.6 pyyaml=6.0.3 --override-channels \
+  -c https://conda.anaconda.org/pytorch \
+  -c https://conda.anaconda.org/nvidia \
+  -c https://conda.anaconda.org/conda-forge -y
+```
+
+After the Conda installation succeeds, install the Python dependencies with `BUTR` active and the compiler available. If using a Conda compiler, install it in `BUTR` at this point using the instructions above.
+
+```bash
+python -m pip install -r requirements.txt &&
 python -m pip check
 ```
 
-Building `faster-coco-eval-aitod` requires a C++ compiler. See [environment notes](docs/environment.md) for prerequisites and installation checks.
+If `BUTR` already exists, skip `conda create` and activate it before continuing. See [environment notes](docs/environment.md) for dependency details and GPU/import checks.
 
 ## Data preparation
 
