@@ -882,7 +882,12 @@ class BUTRTransformer(nn.Module):
             bins=self.budget_bins,
             topm=self.budget_topm,
         )
-        max_q = int(budgets.max().item())
+        # Keep K connected to encoder confidences in the exported ONNX graph.
+        # Eager training/inference retains the original Python integer interface.
+        if torch.onnx.is_in_onnx_export():
+            max_q = budgets.max()
+        else:
+            max_q = int(budgets.max().item())
 
         topk_memory, topk_logits, topk_anchors = self._select_topk(
             output_memory, enc_outputs_logits, anchors, max_q

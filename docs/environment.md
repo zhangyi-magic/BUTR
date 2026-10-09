@@ -28,7 +28,7 @@ The single root [requirements.txt](../requirements.txt) pins direct project depe
 
 Transitive dependencies, Conda build identifiers, system libraries, and the NVIDIA driver are not fully pinned.
 
-Torchaudio and packages for unrelated or optional workflows are not required by the main HGNetv2 configurations. For example, the optional `TimmModel` backbone imports `timm` only when selected. Legacy ONNX, TensorRT, OpenVINO, and FiftyOne tools require their own dependencies and have not been validated for BUTR's dynamic query count.
+Torchaudio and packages for unrelated or optional workflows are not required by the main HGNetv2 configurations. For example, the optional `TimmModel` backbone imports `timm` only when selected. ONNX export and CPU correctness checks use the optional dependencies in `tools/deployment/requirements.txt`; see [ONNX usage](usage.md#onnx-export-and-inference). [TensorRT deployment](tensorrt.md) additionally uses `tools/deployment/requirements-tensorrt.txt` and a compatible NVIDIA driver. OpenVINO and FiftyOne tools require their own dependencies; OpenVINO deployment remains unvalidated.
 
 ## Build prerequisites
 

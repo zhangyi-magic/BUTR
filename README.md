@@ -1,11 +1,10 @@
 <h1 align="center">Dynamic Query as Budgeting for Tiny Object Detection</h1>
 
-<p align="center">Official implementation of <a href="">BUTR</a> (NeurIPS 2026).</p>
+<p align="center">Official implementation of <a href="">BUTR</a> (NeurIPS 2026), a remarkably simple approach to robust dynamic query budgeting for real-time tiny (and dense) object detection.</p>
 
-<p align="center"><em>A remarkably simple approach to robust dynamic query budgeting for real-time tiny (and dense) object detection.</em></p>
-
-<p align="center"><a href="https://zhangyi-magic.github.io/">Yi Zhang</a>, Di Xiong, Ge Gao, Xiangyue Zhang, Yihang Qiu, Yuxuan Zhou, and <a href="https://shuochenya.github.io/">Shuo Chen</a><br>
-REMI Group, PCALab@NJU, Nanjing University<br>
+<p align="center"><a href="https://zhangyi-magic.github.io/">Yi Zhang</a><sup>1</sup>, Di Xiong<sup>1</sup>, Ge Gao<sup>1</sup>, Xiangyue Zhang<sup>1</sup>, Yihang Qiu<sup>1</sup>, Yuxuan Zhou<sup>1</sup>, and <a href="https://shuochenya.github.io/">Shuo Chen</a><sup>1,2</sup><br>
+<sup>1</sup> School of Intelligence Science and Technology, Nanjing University, China.<br>
+<sup>2</sup> Center for Advanced Intelligence Project, RIKEN, Japan.<br>
 📧 Corresponding author: <a href="mailto:shuo.chen@nju.edu.cn">shuo.chen@nju.edu.cn</a></p>
 
 <p align="center"><strong>If you find BUTR useful, please consider giving this repository a star ⭐.</strong></p>
@@ -22,6 +21,8 @@ REMI Group, PCALab@NJU, Nanjing University<br>
 ## Overview
 
 BUTR treats dynamic queries as decoder budgeting: a lightweight, non-learned budgeter estimates the number of queries from encoder confidences, followed by standard Top-K initialization. It adds no learned parameters, auxiliary supervision, or additional loss. See the [method notes](docs/method.md) and [budgeter](src/zoo/models/budget.py).
+
+This repository also supports training and evaluation of [Dome-DETR](https://github.com/RicePasteM/Dome-DETR), [D-FINE](https://github.com/Peterande/D-FINE), and [DEIM](https://github.com/Intellindust-AI-Lab/DEIM) baselines for tiny object detection. See the [baseline protocols](docs/baselines.md).
 
 ## Main results
 
@@ -49,16 +50,16 @@ AI-TOD-v2 and VisDrone results use 800 × 800 inputs, with training on trainval 
 
 BUTR is applied to official D-FINE and DEIM checkpoints without retraining. Each pair shares weights and preprocessing. Evaluation uses all 5,000 COCO val2017 images, 640 × 640 inputs, FP32, and batch size 1 per GPU.
 
-| Model | AP<br>baseline | AP<br>+&nbsp;BUTR | #Params | GFLOPs<br>baseline | GFLOPs<br>+&nbsp;BUTR | Mean queries<br>+&nbsp;BUTR | Safety |
-| --- | ---: | ---: | ---: | ---: | ---: |----------------------------:| ---: |
-| D&#8209;FINE&#8209;S | 48.5 | 48.6 | 10.2M | 25.2 | ~24.6 | 232 | 3.0 |
-| D&#8209;FINE&#8209;M | 52.3 | 52.4 | 19.3M | 56.7 | ~56.6 | 289 | 4.5 |
-| D&#8209;FINE&#8209;L | 54.0 | 54.1 | 30.8M | 91.0 | ~90.2 | 253 | 3.5 |
-| D&#8209;FINE&#8209;X | 55.8 | 55.9 | 61.6M | 202.5 | ~201.7 | 253 | 4.5 |
-| DEIM&#8209;S | 49.0 | 49.0 | 10.2M | 25.2 | ~24.6 | 239 | 6.5 |
-| DEIM&#8209;M | 52.7 | 52.8 | 19.3M | 56.7 | ~55.9 | 236 | 8.5 |
-| DEIM&#8209;L | 54.7 | 54.9 | 30.8M | 91.1 | ~89.8 | 227 | 8.0 |
-| DEIM&#8209;X | 56.5 | 56.6 | 61.7M | 202.7 | ~200.6 | 183 | 6.0 |
+| Model | AP<br>baseline | AP<br>+&nbsp;BUTR | #Params | GFLOPs<br>baseline | GFLOPs<br>+&nbsp;BUTR | Mean queries<br>+&nbsp;BUTR | Safety<br>Factor |
+| --- | ---: | ---: | ---: | ---: | ---: |----------------------------:|-----------------:|
+| D&#8209;FINE&#8209;S | 48.5 | 48.6 | 10.2M | 25.2 | ~24.6 | 232 |              3.0 |
+| D&#8209;FINE&#8209;M | 52.3 | 52.4 | 19.3M | 56.7 | ~56.6 | 289 |              4.5 |
+| D&#8209;FINE&#8209;L | 54.0 | 54.1 | 30.8M | 91.0 | ~90.2 | 253 |              3.5 |
+| D&#8209;FINE&#8209;X | 55.8 | 55.9 | 61.6M | 202.5 | ~201.7 | 253 |              4.5 |
+| DEIM&#8209;S | 49.0 | 49.0 | 10.2M | 25.2 | ~24.6 | 239 |              6.5 |
+| DEIM&#8209;M | 52.7 | 52.8 | 19.3M | 56.7 | ~55.9 | 236 |              8.5 |
+| DEIM&#8209;L | 54.7 | 54.9 | 30.8M | 91.1 | ~89.8 | 227 |              8.0 |
+| DEIM&#8209;X | 56.5 | 56.6 | 61.7M | 202.7 | ~200.6 | 183 |              6.0 |
 
 Baselines use 300 queries; BUTR uses `[100, 500]` and `min_prob=1e-6`. GFLOPs use `calflops 0.3.2` on the deployed model, excluding data loading and post-processing. Dynamic costs are averaged over the measured query-count histogram. See [COCO evaluation and profiling](docs/coco.md).
 
@@ -91,7 +92,7 @@ If `BUTR` already exists, skip `conda create` and activate it before continuing.
 ## Data preparation
 
 | Dataset | Download | Dataset config |
-| --- | --- | --- |
+| :---: | :---: | :---: |
 | AI-TOD-v2 | [Images](https://github.com/jwwangchn/AI-TOD#download) · [v2 annotations](https://chasel-tsui.github.io/AI-TOD-v2/) | [aitod_detection.yml](configs/dataset/aitod_detection.yml) |
 | VisDrone | [Official downloads](https://github.com/VisDrone/VisDrone-Dataset#task-1-object-detection-in-images) | [visdrone_detection.yml](configs/dataset/visdrone_detection.yml) |
 
@@ -130,6 +131,8 @@ CUDA_VISIBLE_DEVICES=0 python tools/inference/torch_inf.py -c configs/models/BUT
 ```
 
 The same tool accepts video input. See [image/video inference and latency measurement](docs/usage.md) for options.
+
+For dynamic ONNX export and TensorRT FP16 latency measurement, see the [deployment guide](docs/tensorrt.md).
 
 ## COCO plug-in evaluation
 

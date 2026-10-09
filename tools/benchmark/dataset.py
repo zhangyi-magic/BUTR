@@ -46,19 +46,37 @@ class PadToSize(T.Pad):
 
 
 class Dataset(data.Dataset):
-    def __init__(self, img_dir: str = "", preprocess: T.Compose = None, device="cuda:0") -> None:
+    def __init__(
+        self,
+        img_dir: str = "",
+        preprocess: T.Compose = None,
+        device="cuda:0",
+        size=640,
+        mode="official",
+    ) -> None:
         super().__init__()
 
         self.device = device
-        self.size = 640
+        self.size = int(size)
 
         self.im_path_list = list(glob.glob(os.path.join(img_dir, "*.jpg")))
+        for extension in ("jpeg", "png"):
+            self.im_path_list.extend(glob.glob(os.path.join(img_dir, f"*.{extension}")))
 
         if preprocess is None:
+            if mode not in ("official", "resize"):
+                raise ValueError(f"Unknown preprocessing mode: {mode}")
+            spatial_transform = (
+                [
+                    T.Resize(size=self.size - 1, max_size=self.size),
+                    PadToSize(size=(self.size, self.size), fill=114),
+                ]
+                if mode == "official"
+                else [T.Resize((self.size, self.size))]
+            )
             self.preprocess = T.Compose(
                 [
-                    T.Resize(size=639, max_size=640),
-                    PadToSize(size=(640, 640), fill=114),
+                    *spatial_transform,
                     ToTensor(),
                     T.ConvertImageDtype(torch.float),
                 ]
@@ -74,9 +92,14 @@ class Dataset(data.Dataset):
     def __getitem__(self, index):
         # im = Image.open(self.img_path_list[index]).convert('RGB')
         im = torchvision.io.read_file(self.im_path_list[index])
-        im = torchvision.io.decode_jpeg(
-            im, mode=torchvision.io.ImageReadMode.RGB, device=self.device
-        )
+        if self.im_path_list[index].lower().endswith(".png"):
+            im = torchvision.io.decode_png(im, mode=torchvision.io.ImageReadMode.RGB).to(
+                self.device
+            )
+        else:
+            im = torchvision.io.decode_jpeg(
+                im, mode=torchvision.io.ImageReadMode.RGB, device=self.device
+            )
         _, h, w = im.shape  # c,h,w
 
         im = self.preprocess(im)

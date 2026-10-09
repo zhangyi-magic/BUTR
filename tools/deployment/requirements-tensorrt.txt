@@ -1,0 +1,2 @@
+# TensorRT version used by the D-FINE/DEIM latency protocol (Linux CUDA deployment).
+tensorrt==10.4.0

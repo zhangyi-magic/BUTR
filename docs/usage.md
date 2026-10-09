@@ -67,7 +67,31 @@ CUDA_VISIBLE_DEVICES=0 python tools/benchmark/latency.py -c configs/models/BUTR-
 
 The benchmark forces validation batch size 1 and synchronizes CUDA before and after each measured forward pass. It includes post-processing by default and excludes data loading and image transfer. `--forward-only` excludes post-processing; `--measure-iters` limits the number of measured batches. Keep hardware, input size, precision, and post-processing settings consistent when comparing models.
 
-Legacy ONNX / TensorRT / OpenVINO tools have not been validated for BUTR's input-dependent query count: standard tracing can freeze the budget during Python integer conversion. Use the PyTorch path for dynamic-budget experiments. The main configurations use PyTorch deformable attention; building the legacy extension is needed only for the optional deformable encoder.
+The main configurations use PyTorch deformable attention; building the legacy extension is needed only for the optional deformable encoder.
+
+## ONNX export and inference
+
+Install the optional export/runtime dependencies in the existing environment:
+
+```bash
+python -m pip install -r tools/deployment/requirements.txt
+python tools/deployment/export_onnx.py -c configs/models/BUTR-L-AITOD.yml \
+  -r output/butr_l_aitodv2/best_stg2.pth -o output/butr_l_aitodv2/model.onnx \
+  --verify-images /path/to/image1.png /path/to/image2.png
+```
+
+The exporter uses batch size 1 and the configuration's fixed `eval_spatial_size`. Query count remains input-dependent: the confidence-derived budget feeds ONNX `TopK` as a tensor, and `labels`, `boxes`, and `scores` have a dynamic query axis. Graph checks reject a disconnected or frozen budget. Optional image verification compares ONNX Runtime CPU outputs with deployed PyTorch outputs, allowing equal-score detections to appear in a different order. Use varied images; identical counts can also occur when budgets reach their configured limits.
+
+Run image or video inference on CPU:
+
+```bash
+python tools/inference/onnx_inf.py --onnx output/butr_l_aitodv2/model.onnx \
+  -i /path/to/image.png -o output/onnx_detections.png --threshold 0.4
+```
+
+Input resolution is read from the ONNX graph. Preprocessing matches validation: direct RGB resize and conversion to `[0, 1]`; original sizes use `(width, height)`. Exported post-processing returns pixel-coordinate boxes at the original image size. Video inference applies the same operation to each frame.
+
+The optional ONNX regression tests run the same graph at minimum, intermediate, and maximum budgets and compare predictions with PyTorch. ONNX Runtime correctness does not establish TensorRT FP16 accuracy or latency. See [TensorRT deployment and benchmarking](tensorrt.md) for the dynamic two-engine pipeline, precision settings, and the D-FINE/DEIM timing protocol. OpenVINO deployment remains unvalidated. Validate the export in your checkpoint's environment before deployment.
 
 ## Development checks
 
