@@ -43,13 +43,12 @@ BUTRTransformer:
   num_points: [4, 4, 4, 4]
   min_num_select: 300
   max_num_select: 1500
-  budget_train_safety: 2.0
+  budget_train_safety: 1.0
   budget_eval_safety: 2.0
   budget_score_method: max_sigmoid
   budget_map: linear
   budget_min_prob: 1.0e-6
   budget_bins: [300, 500, 900, 1500]
-  budget_topm: 3
 
 
 optimizer:

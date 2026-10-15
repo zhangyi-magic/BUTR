@@ -185,6 +185,26 @@ class ONNXTests(unittest.TestCase):
 
 
 class DetectionComparisonTests(unittest.TestCase):
+    def test_missing_derived_buffers_can_be_recreated_but_missing_weights_cannot(self):
+        from tools.deployment.export_onnx import load_deployment_state
+
+        model = nn.Module()
+        model.decoder = nn.Module()
+        model.decoder.register_buffer("anchors", torch.zeros(1, 10, 4))
+        model.decoder.register_buffer("valid_mask", torch.ones(1, 10, 1, dtype=torch.bool))
+        model.decoder.decoder = nn.Module()
+        model.decoder.decoder.register_buffer("project", torch.arange(9.0))
+        model.head = nn.Linear(4, 3)
+        state = model.state_dict()
+        trained_weights = {
+            key: value.clone() for key, value in state.items() if key.startswith("head.")
+        }
+        load_deployment_state(model, trained_weights)
+        for key, value in trained_weights.items():
+            torch.testing.assert_close(model.state_dict()[key], value)
+        with self.assertRaisesRegex(RuntimeError, "head.weight"):
+            load_deployment_state(model, {"head.bias": trained_weights["head.bias"]})
+
     def test_preprocessing_matches_validation_and_size_order(self):
         from PIL import Image
         from torchvision.transforms import Compose, Resize, ToTensor

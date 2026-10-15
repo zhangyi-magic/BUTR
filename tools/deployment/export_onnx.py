@@ -28,6 +28,21 @@ class DeploymentModel(nn.Module):
         return self.postprocessor(self.model(images), orig_target_sizes)
 
 
+def load_deployment_state(detector, state):
+    """Strictly load weights; recreate only missing deterministic deployment caches."""
+    state = dict(state)
+    initial = detector.state_dict()
+    filled = []
+    for name in ("decoder.anchors", "decoder.valid_mask", "decoder.decoder.project"):
+        if name in initial and name not in state:
+            state[name] = initial[name]
+            filled.append(name)
+    detector.load_state_dict(state, strict=True)
+    if filled:
+        print("Recreated derived buffers:", ", ".join(filled), flush=True)
+    return filled
+
+
 def check_dynamic_budget(graph_model):
     """Reject graphs whose TopK has lost the confidence-derived budget."""
     producers = {output: node for node in graph_model.graph.node for output in node.output}
@@ -166,7 +181,7 @@ def main(args):
     checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
     state = checkpoint["ema"]["module"] if "ema" in checkpoint else checkpoint["model"]
     detector = cfg.model
-    detector.load_state_dict(state)
+    load_deployment_state(detector, state)
     require_dynamic = any(isinstance(module, BUTRTransformer) for module in detector.modules())
     model = DeploymentModel(detector, cfg.postprocessor).eval()
     height, width = cfg.yaml_cfg["eval_spatial_size"]

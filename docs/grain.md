@@ -2,6 +2,21 @@
 
 Sorghum-Grain-Count (Grain) is used for the supplementary cross-domain evaluation in Appendix G. The main BUTR benchmarks are AI-TOD-v2 and VisDrone.
 
+## Results
+
+The following detection results are reported in Appendix G, Table 11, using 800 × 800 nonempty crops. All compared models are trained on cropped trainval and evaluated on cropped test under matched settings.
+
+| Model | Queries (mean ± std) | AP | AP50 | AP75 | APt | APs | APm |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| D-FINE-L | 400 | 57.0 | 92.6 | 64.9 | 10.6 | 50.1 | 63.6 |
+| D-FINE-L | 1100 | 57.7 | 93.9 | 65.6 | 13.4 | 50.9 | 64.2 |
+| DEIM-L | 400 | 57.2 | 92.9 | 65.1 | 10.9 | 50.3 | 63.8 |
+| DEIM-L | 1100 | 58.0 | 94.0 | 66.3 | 14.3 | 51.3 | 64.3 |
+| Dome-DETR-L | 1103 ± 195 | 57.6 | 94.0 | 65.4 | 13.1 | 50.8 | 64.1 |
+| BUTR-L | 378 ± 119 | 58.0 | 93.8 | 66.1 | 14.5 | 51.5 | 64.1 |
+
+D-FINE and DEIM use fixed budgets of 400 or 1100 queries. Dome-DETR and BUTR use dynamic budgets; the mean and standard deviation are computed across evaluation patches, not repeated training runs. APt/APs/APm denote the paper's tiny/small/medium object metrics.
+
 ## Download
 
 The [official Sorghum-Grain-Count repository](https://github.com/swarajksu/sorghum-grain-count) provides the dataset download link. Use the annotated panicle images and their original train, validation, and test splits.

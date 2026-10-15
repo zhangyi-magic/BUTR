@@ -11,7 +11,7 @@ budget = (safety_factor * density_proxy).ceil().long()
 budget = budget.clamp(min_queries, max_queries)
 ```
 
-The production implementation additionally suppresses scores below `budget_min_prob`. The default paper configuration uses `budget_score_method: max_sigmoid` and `budget_map: linear`. Other supported scoring methods (`max`, `sum_prob`, `union_prob`, `topm_sum`) and the `bins` mapping are retained for ablations.
+The production implementation additionally suppresses scores below `budget_min_prob`. The default paper configuration uses `budget_score_method: max_sigmoid` and `budget_map: linear`. Other supported scoring methods (`max`, `sum_prob`, `union_prob`) and the `bins` mapping are retained for ablations.
 
 See [`budget.py`](../src/zoo/models/budget.py) for the estimator and [`butr_decoder.py`](../src/zoo/models/butr_decoder.py) for Top-K query initialization. Training and evaluation safety factors are configured separately and should follow the selected experiment configuration.
 

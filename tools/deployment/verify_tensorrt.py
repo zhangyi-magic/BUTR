@@ -118,7 +118,9 @@ def main(args):
     cfg.yaml_cfg["HGNetv2"]["pretrained"] = False
     checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
     state = checkpoint["ema"]["module"] if "ema" in checkpoint else checkpoint["model"]
-    cfg.model.load_state_dict(state)
+    from tools.deployment.export_onnx import load_deployment_state
+
+    load_deployment_state(cfg.model, state)
     model = DeploymentModel(cfg.model, cfg.postprocessor).eval().to(args.device)
     runner = load_runner(args.engine, args.device, runtime_mode=args.runtime)
     spatial_size = runner.input_shape("images")[-2:]

@@ -48,7 +48,6 @@ BUTRTransformer:
   budget_map: linear
   budget_min_prob: 1.0e-6
   budget_bins: [300, 500, 900, 1500]
-  budget_topm: 3
 
 
 optimizer:

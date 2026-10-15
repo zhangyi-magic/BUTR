@@ -21,7 +21,6 @@ def compute_query_budget(
     score_method="max_sigmoid",
     budget_map="linear",
     bins=(600, 900, 1200, 1500),
-    topm=3,
 ):
     """Return one integer budget per image, without gradients or learned parameters.
 
@@ -32,7 +31,7 @@ def compute_query_budget(
     """
     if logits.ndim != 3:
         raise ValueError("Expected encoder logits with shape [B, L, C].")
-    batch, locations, classes = logits.shape
+    batch, locations, _ = logits.shape
     valid = valid_mask.squeeze(-1) > 0.5
     if valid.shape[0] == 1 and batch > 1:
         valid = valid.expand(batch, -1)
@@ -48,9 +47,6 @@ def compute_query_budget(
     elif score_method == "union_prob":
         log_product = torch.log1p(-probabilities.clamp(max=1 - 1e-6)).sum(dim=-1)
         scores = 1.0 - torch.exp(log_product)
-    elif score_method == "topm_sum":
-        values = torch.topk(probabilities, k=max(1, min(int(topm), classes)), dim=-1).values
-        scores = values.sum(dim=-1)
     else:
         raise ValueError(f"Unknown score_method: {score_method}")
     scores = scores * valid.to(scores.dtype)

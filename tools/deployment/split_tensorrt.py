@@ -5,13 +5,16 @@ the decoder receives the same scalar through a host shape input.
 """
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
 
 
-def split_model(onnx_path, output_dir, query_profile=(300, 600, 1500)):
+def split_model(
+    onnx_path, output_dir, query_profile=(300, 600, 1500), *, decoder_layout="splitfirst"
+):
     import onnx
     from onnx import numpy_helper
     from onnx.utils import Extractor
@@ -19,6 +22,8 @@ def split_model(onnx_path, output_dir, query_profile=(300, 600, 1500)):
     from tools.deployment.export_onnx import check_dynamic_budget
 
     minimum, optimum, maximum = query_profile
+    if decoder_layout not in ("original", "splitfirst"):
+        raise ValueError("decoder_layout must be original or splitfirst.")
     if not 1 <= minimum <= optimum <= maximum <= 3840:
         raise ValueError("Require 1 <= min <= opt <= max <= 3840 for the query profile.")
     model = onnx.shape_inference.infer_shapes(onnx.load(str(onnx_path)))
@@ -153,9 +158,6 @@ def split_model(onnx_path, output_dir, query_profile=(300, 600, 1500)):
                     value.type.tensor_type.shape.dim.add().dim_value = size
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    for name, part in (("encoder", encoder), ("decoder", decoder)):
-        onnx.checker.check_model(part)
-        onnx.save(part, str(output_dir / f"{name}.onnx"))
     manifest = {
         "format": "butr-tensorrt-split-v1",
         "encoder": "encoder.engine",
@@ -168,6 +170,29 @@ def split_model(onnx_path, output_dir, query_profile=(300, 600, 1500)):
         "postprocessing_in_decoder": True,
         "boundary_shapes": {name: list(shape) for name, shape in boundary_shapes.items()},
     }
+    onnx.checker.check_model(decoder)
+    onnx.save(decoder, str(output_dir / "decoder-original.onnx"))
+    manifest["decoder_layout"] = decoder_layout
+    if decoder_layout == "splitfirst":
+        from tools.deployment.optimize_value_layout import rewrite_value_layout
+
+        decoder, descriptor = rewrite_value_layout(decoder, manifest)
+        manifest["value_layout"] = descriptor
+    for name, part in (("encoder", encoder), ("decoder", decoder)):
+        onnx.checker.check_model(part)
+        onnx.save(part, str(output_dir / f"{name}.onnx"))
+    layout_metadata = {
+        "layout": decoder_layout,
+        "source_onnx_sha256": hashlib.sha256(
+            (output_dir / "decoder-original.onnx").read_bytes()
+        ).hexdigest(),
+        "onnx_sha256": hashlib.sha256((output_dir / "decoder.onnx").read_bytes()).hexdigest(),
+        "weights_changed": False,
+        "query_selection_changed": False,
+    }
+    if "value_layout" in manifest:
+        layout_metadata["descriptor"] = manifest["value_layout"]
+    (output_dir / "decoder.onnx.json").write_text(json.dumps(layout_metadata, indent=2) + "\n")
     (output_dir / "pipeline.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Split into {output_dir}: {len(frontier)} boundary tensors; budget={budget_name}")
     return manifest
@@ -178,6 +203,12 @@ def main():
     parser.add_argument("--onnx", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument(
+        "--decoder-layout",
+        choices=("original", "splitfirst"),
+        default="splitfirst",
+        help="splitfirst: measured value-layout optimization; original: unmodified control",
+    )
+    parser.add_argument(
         "--query-profile",
         nargs=3,
         type=int,
@@ -185,7 +216,7 @@ def main():
         metavar=("MIN", "OPT", "MAX"),
     )
     args = parser.parse_args()
-    split_model(args.onnx, args.output_dir, args.query_profile)
+    split_model(args.onnx, args.output_dir, args.query_profile, decoder_layout=args.decoder_layout)
 
 
 if __name__ == "__main__":

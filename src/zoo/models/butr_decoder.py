@@ -499,7 +499,6 @@ class BUTRTransformer(nn.Module):
         budget_score_method="max_sigmoid",
         budget_map="linear",
         budget_bins=(300, 500, 900, 1500),
-        budget_topm=3,
     ):
         super().__init__()
         assert len(feat_channels) <= num_levels
@@ -529,7 +528,6 @@ class BUTRTransformer(nn.Module):
         self.budget_score_method = budget_score_method
         self.budget_map = budget_map
         self.budget_bins = tuple(int(x) for x in budget_bins)
-        self.budget_topm = int(budget_topm)
 
         assert query_select_method in ("default", "one2many", "agnostic"), ""
         assert cross_attn_method in ("default", "discrete"), ""
@@ -538,7 +536,6 @@ class BUTRTransformer(nn.Module):
             "max_sigmoid",
             "sum_prob",
             "union_prob",
-            "topm_sum",
         ):
             raise ValueError(f"Unknown budget_score_method: {self.budget_score_method}")
         if self.budget_map not in ("linear", "bins"):
@@ -814,7 +811,6 @@ class BUTRTransformer(nn.Module):
         score_method="max_sigmoid",
         budget_map="linear",
         bins=(600, 900, 1200, 1500),
-        topm=3,
     ):
         """Compatibility wrapper for the original decoder budgeting interface."""
         return compute_query_budget(
@@ -827,7 +823,6 @@ class BUTRTransformer(nn.Module):
             score_method,
             budget_map,
             bins,
-            topm,
         )
 
     def _get_decoder_input_budget(
@@ -838,11 +833,9 @@ class BUTRTransformer(nn.Module):
         """
         Budgeted decoder input.
 
-        Train / Eval:
-          - both use the same expected-count budgeter
-          - compute per-image budgets from encoder logits
-          - use batch-wise max budget for tensorized decoding
-          - keep K_base / K_max as lower / upper bounds
+        Training and evaluation use per-image expected-count budgets within
+        K_base / K_max, with their respective safety factors and the batch-wise
+        maximum for tensorized decoding.
         """
         B = memory.shape[0]
         # Small feature maps may expose fewer proposals than the configured range.
@@ -880,7 +873,6 @@ class BUTRTransformer(nn.Module):
             score_method=self.budget_score_method,
             budget_map=self.budget_map,
             bins=self.budget_bins,
-            topm=self.budget_topm,
         )
         # Keep K connected to encoder confidences in the exported ONNX graph.
         # Eager training/inference retains the original Python integer interface.

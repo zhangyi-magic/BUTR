@@ -63,7 +63,6 @@ class BudgetTests(unittest.TestCase):
             ("max_sigmoid", 2),
             ("sum_prob", 4),
             ("union_prob", 3),
-            ("topm_sum", 4),
         ]:
             with self.subTest(method=method):
                 result = compute_query_budget(logits, mask, 1, 10, score_method=method)
@@ -81,6 +80,17 @@ class BudgetTests(unittest.TestCase):
         ]:
             with self.subTest(overrides=overrides), self.assertRaises(ValueError):
                 small_decoder(**overrides)
+
+    def test_training_and_eval_use_dynamic_budgets(self):
+        decoder = small_decoder(budget_train_safety=1.0, budget_eval_safety=2.0)
+        mask = torch.ones(1, 8, 1, dtype=torch.bool)
+        for training in (True, False):
+            decoder.train(training)
+            safety = decoder.budget_train_safety if training else decoder.budget_eval_safety
+            budgets = decoder._compute_budget_expected_count(
+                torch.zeros(1, 8, 3), mask, K_base=3, K_max=8, safety=safety
+            )
+            self.assertEqual(budgets.tolist(), [4 if training else 8])
 
 
 class ConfigTests(unittest.TestCase):

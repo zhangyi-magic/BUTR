@@ -19,6 +19,11 @@ from .det_engine import evaluate, train_one_epoch
 
 
 class DetSolver(BaseSolver):
+    def _save_checkpoint(self, path):
+        if dist_utils.is_main_process():
+            print(f"Saving checkpoint to {path}...", flush=True)
+            dist_utils.save_on_master(self.state_dict(), path)
+
     def fit(self):
         self.train()
         args = self.cfg
@@ -50,9 +55,10 @@ class DetSolver(BaseSolver):
 
         n_parameters = sum(p.numel() for p in self.model.parameters())
         print(f"Number of parameters: {n_parameters:,}")
-        if args.yaml_cfg.get("profile_model", False):
+        if args.yaml_cfg.get("profile_model", True) and dist_utils.is_main_process():
             from ..misc.profiler_utils import stats
 
+            print("Calculating model FLOPs with calflops...", flush=True)
             _, model_stats = stats(self.cfg)
             print(model_stats)
         print("-" * 42 + "Start training" + "-" * 43)
@@ -81,6 +87,7 @@ class DetSolver(BaseSolver):
 
         if self.last_epoch > 0:
             module = self.ema.module if self.ema else self.model
+            print(f"Start evaluation at epoch {self.last_epoch} (resumed checkpoint)...", flush=True)
             test_stats, coco_evaluator = evaluate(
                 module,
                 self.criterion,
@@ -144,13 +151,14 @@ class DetSolver(BaseSolver):
                 if (epoch + 1) % args.checkpoint_freq == 0:
                     checkpoint_paths.append(self.output_dir / f"checkpoint{epoch:04}.pth")
                 for checkpoint_path in checkpoint_paths:
-                    dist_utils.save_on_master(self.state_dict(), checkpoint_path)
+                    self._save_checkpoint(checkpoint_path)
 
             module = self.ema.module if self.ema else self.model
 
             should_validate = epoch >= val_start_epoch
 
             if should_validate:
+                print(f"Start evaluation at epoch {epoch}...", flush=True)
                 test_stats, coco_evaluator = evaluate(
                     module,
                     self.criterion,
@@ -180,13 +188,9 @@ class DetSolver(BaseSolver):
                         top1 = best_stat[k]
                         if self.output_dir:
                             if epoch >= self.train_dataloader.collate_fn.stop_epoch:
-                                dist_utils.save_on_master(
-                                    self.state_dict(), self.output_dir / "best_stg2.pth"
-                                )
+                                self._save_checkpoint(self.output_dir / "best_stg2.pth")
                             else:
-                                dist_utils.save_on_master(
-                                    self.state_dict(), self.output_dir / "best_stg1.pth"
-                                )
+                                self._save_checkpoint(self.output_dir / "best_stg1.pth")
                     else:
                         self.not_improved_count += 1
 
@@ -198,14 +202,10 @@ class DetSolver(BaseSolver):
                         if epoch >= self.train_dataloader.collate_fn.stop_epoch:
                             if test_stats[k][0] > top1:
                                 top1 = test_stats[k][0]
-                                dist_utils.save_on_master(
-                                    self.state_dict(), self.output_dir / "best_stg2.pth"
-                                )
+                                self._save_checkpoint(self.output_dir / "best_stg2.pth")
                         else:
                             top1 = max(test_stats[k][0], top1)
-                            dist_utils.save_on_master(
-                                self.state_dict(), self.output_dir / "best_stg1.pth"
-                            )
+                            self._save_checkpoint(self.output_dir / "best_stg1.pth")
 
                     elif (
                         self.output_dir
@@ -270,6 +270,7 @@ class DetSolver(BaseSolver):
         self.eval()
 
         module = self.ema.module if self.ema else self.model
+        print("Start evaluation...", flush=True)
         test_stats, coco_evaluator = evaluate(
             module,
             self.criterion,
@@ -280,6 +281,7 @@ class DetSolver(BaseSolver):
         )
 
         if self.output_dir and dist_utils.is_main_process():
+            print(f"Saving evaluation results to {self.output_dir / 'eval.pth'}...", flush=True)
             dist_utils.save_on_master(
                 coco_evaluator.coco_eval["bbox"].eval, self.output_dir / "eval.pth"
             )

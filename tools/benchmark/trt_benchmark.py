@@ -5,22 +5,88 @@ Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
 import argparse
+import glob
+import hashlib
 import json
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
-import torch
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools.benchmark.dataset import Dataset
-from tools.deployment.tensorrt_runtime import load_runner
+
+def Dataset(*args, **kwargs):
+    from tools.benchmark.dataset import Dataset as dataset_class
+
+    return dataset_class(*args, **kwargs)
+
+
+def load_runner(*args, **kwargs):
+    from tools.deployment.tensorrt_runtime import load_runner as factory
+
+    return factory(*args, **kwargs)
+
+
+def preread_images(args):
+    """Initialize the same input bytes before importing the GPU inference stack."""
+    if args.no_cpu_preread:
+        return None, {"enabled": False}
+    if args.image_list:
+        paths = [
+            str(Path(args.infer_dir) / name.strip())
+            for name in Path(args.image_list).read_text().splitlines()
+            if name.strip()
+        ]
+    else:
+        paths = [
+            name
+            for extension in ("jpg", "jpeg", "png")
+            for name in glob.glob(str(Path(args.infer_dir) / ("*." + extension)))
+        ]
+    paths = paths[: args.iterations]
+    if len(paths) != args.iterations or len(set(paths)) != len(paths):
+        raise ValueError("Provide enough unique images for the requested iterations.")
+    started = time.perf_counter()
+    manifest_path = (
+        Path(args.image_manifest)
+        if args.image_manifest
+        else (Path(args.image_list).with_suffix(".json") if args.image_list else None)
+    )
+    expected = None
+    if manifest_path is not None and manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text())
+        if manifest.get("format") != "butr-benchmark-image-list-v1":
+            raise ValueError("Unsupported image-list manifest.")
+        expected = manifest["files"]
+    elif args.image_manifest:
+        raise FileNotFoundError(manifest_path)
+    records = []
+    for path in paths:
+        content = Path(path).read_bytes()
+        checksum = hashlib.sha256(content).hexdigest()
+        if expected is not None:
+            relative = Path(path).resolve().relative_to(Path(args.infer_dir).resolve()).as_posix()
+            reference = expected.get(relative)
+            if reference != {"sha256": checksum, "bytes": len(content)}:
+                raise ValueError(f"Image bytes do not match the measured manifest: {relative}")
+        records.append({"image": path, "bytes": len(content), "sha256": checksum})
+    return paths, {
+        "enabled": True,
+        "images": len(records),
+        "files": records,
+        "verified_against_manifest": expected is not None,
+        "bytes": sum(row["bytes"] for row in records),
+        "seconds": time.perf_counter() - started,
+        "included_in_latency": False,
+    }
 
 
 def benchmark(engine_path, args):
+    image_paths, initialization = preread_images(args)
+    import torch
     import tensorrt as trt
 
     runner = load_runner(engine_path, args.device, args.max_queries, runtime_mode=args.runtime)
@@ -28,7 +94,9 @@ def benchmark(engine_path, args):
     if batch != 1 or channels != 3 or height != width:
         raise ValueError("The benchmark expects batch size 1 and a fixed square image size.")
     dataset = Dataset(args.infer_dir, device=args.device, size=height, mode=args.preprocess)
-    if args.image_list:
+    if image_paths is not None:
+        dataset.im_path_list = image_paths
+    elif args.image_list:
         paths = Path(args.image_list).read_text().splitlines()
         dataset.im_path_list = [str(Path(args.infer_dir) / path) for path in paths if path.strip()]
     if len(dataset) < args.iterations:
@@ -74,6 +142,8 @@ def benchmark(engine_path, args):
         "batch_size": 1,
         "input_size": [height, width],
         "preprocess": args.preprocess,
+        "cpu_input_initialization": initialization,
+        "runtime_nvtx_verbosity": "NONE",
         "warmup_iterations": args.warmup_iters,
         "measured_images": args.iterations,
         "mean_ms": float(np.mean(timings)),
@@ -134,7 +204,16 @@ def build_parser():
     parser.add_argument(
         "--image-list", help="text file of image paths relative to infer-dir, one per line"
     )
+    parser.add_argument(
+        "--image-manifest",
+        help="expected image hashes; default: image-list .json sidecar if present",
+    )
     parser.add_argument("--warmup-iters", type=int, default=1000)
+    parser.add_argument(
+        "--no-cpu-preread",
+        action="store_true",
+        help="disable shared CPU input initialization (enabled in reported T4 experiments)",
+    )
     parser.add_argument("--iterations", type=int, default=1000)
     parser.add_argument(
         "--max-queries", type=int, default=1500, help="capacity for dynamic output buffers"

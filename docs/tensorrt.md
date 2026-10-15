@@ -9,6 +9,8 @@ python -m pip install -r tools/deployment/requirements.txt \
 
 The benchmark targets TensorRT **10.4.0**, batch size **1**, and FP16-enabled engines, following the [D-FINE](https://github.com/Peterande/D-FINE/blob/master/tools/benchmark/trt_benchmark.py) and [DEIM](https://github.com/Intellindust-AI-Lab/DEIM/blob/main/tools/benchmark/trt_benchmark.py) timing protocol. The TensorRT pip package supplies its own CUDA libraries; these can differ from PyTorch's CUDA build. Use a driver compatible with both.
 
+See [AI-TOD-v2 deployment results](deployment-results.md) for measured T4 latency, query counts, GPU memory, and the decoder layout used in those measurements.
+
 ## Build a dynamic BUTR pipeline
 
 Export the trained checkpoint with the matching YAML:
@@ -19,7 +21,8 @@ python tools/deployment/export_onnx.py -c configs/models/BUTR-L-AITOD.yml \
 
 python tools/deployment/split_tensorrt.py \
   --onnx output/butr_l_aitodv2/model.onnx \
-  --output-dir output/butr_l_aitodv2/trt --query-profile 300 600 1500
+  --output-dir output/butr_l_aitodv2/trt --query-profile 300 600 1500 \
+  --decoder-layout splitfirst
 
 CUDA_VISIBLE_DEVICES=0 python tools/deployment/build_tensorrt.py \
   --onnx output/butr_l_aitodv2/trt/encoder.onnx \
@@ -31,11 +34,15 @@ CUDA_VISIBLE_DEVICES=0 python tools/deployment/build_tensorrt.py \
   --pipeline output/butr_l_aitodv2/trt/pipeline.json --fp32-sensitive
 ```
 
+`splitfirst` is the default decoder layout and applies the same split-before-transpose ONNX rewrite used for the measured BUTR results. It changes the query-independent cross-attention value layout, preserving weights, query budgets, shape-control expressions, and model I/O. `decoder-original.onnx` is retained as a control; `decoder.onnx.json` and the engine sidecar record the selected layout and graph hashes. Use `--decoder-layout original` with a separate output directory to build an unmodified comparison pipeline. No experimental scripts under `tmp` are required for this BUTR deployment path.
+
 The query profile is `MIN OPT MAX`; its endpoints must cover the YAML's minimum and maximum budgets. `OPT` selects a build optimization point without rounding runtime budgets. Adjust these values for other configurations. The current TensorRT TopK limit is 3840; a model requiring more queries needs another implementation.
+
+For VisDrone, use its model YAML and checkpoint and `--query-profile 250 400 500`. For S/M/L, preserve the matching YAML's decoder depth rather than forcing all scales to the same layer count.
 
 ONNX retains the input-dependent budget, but TensorRT 10.4 cannot construct a single engine when the proposal TopK count depends on floating-point image computation. The splitter preserves the graph's operations in two engines: the encoder computes features and the exact budget; the decoder receives that budget as a host shape input. Feature tensors stay on the GPU. Neither the query count nor the decoder is padded to the maximum budget.
 
-`--fp32-sensitive` preserves normalization, decoder operations other than convolution/matrix multiplication, and detection post-processing in FP32. Convolution and matrix multiplication remain eligible for FP16. Tiny-object boxes can be sensitive to rounding; an FP16-enabled engine can use mixed precision. The build sidecar records every precision constraint, GPU, versions, profile, and graph hash. `--workspace-gib` optionally limits builder workspace; keep this setting consistent across comparisons.
+`--fp32-sensitive` preserves normalization other than fused batch normalization, decoder operations other than convolution/matrix multiplication, and detection post-processing in FP32. Convolution and matrix multiplication remain eligible for FP16. Tiny-object boxes can be sensitive to rounding; an FP16-enabled engine can use mixed precision. The builder uses eight timing iterations, disables TF32, and stores detailed profiling metadata, matching the measured tiny-object build policy. Runtime NVTX verbosity is disabled for all model families. The sidecar records the constraints, GPU, versions, profile, and graph hash. `--workspace-gib` optionally limits builder workspace; keep this setting consistent across comparisons.
 
 Rebuild both engines on the target GPU. An engine built on an RTX 4090 is not a portable T4 artifact.
 
@@ -80,10 +87,45 @@ Video detection runs independently per frame; the saved video's frame rate does 
 CUDA_VISIBLE_DEVICES=0 python tools/benchmark/trt_benchmark.py \
   --engine output/butr_l_aitodv2/trt/pipeline.json \
   --infer-dir /path/to/AI-TOD/images/test --preprocess resize \
+  --image-list tools/benchmark/image_lists/aitodv2_test_1000.txt \
   --output output/butr_l_aitodv2/trt/latency.json
 ```
 
 The defaults perform 1000 warmup calls on a synthetic tensor, followed by 1000 real images. CUDA synchronization brackets each `time.time()` measurement. Timing includes both engine calls, host budget transfer, shape resolution, and exported detection post-processing. Image loading, decoding, resizing, and input transfer occur outside the measured interval, matching the upstream timing boundary. The reported mean uses all measured images; there is no fastest-subset filter.
+
+The benchmark first reads and hashes the selected image bytes on the CPU before importing the GPU inference stack. With either supplied image list, its JSON sidecar also checks the expected byte count and SHA256 for every selected image. This shared input initialization matches the measured experiment procedure and is excluded from latency; it is additional to the upstream public script. `--no-cpu-preread` disables it for diagnostics. The two lists under `tools/benchmark/image_lists/` preserve the actual AI-TOD-v2 and VisDrone image order used in the reported comparisons. The VisDrone list requires the full 1,610-image annotated test split, rather than the moderate subset. Custom lists without a sidecar still record hashes; `--image-manifest` supplies an explicit expected manifest.
+
+For three independent rounds, run the command in three fresh processes, retaining every output:
+
+```bash
+for round in 1 2 3; do
+  CUDA_VISIBLE_DEVICES=0 python tools/benchmark/trt_benchmark.py \
+    --engine output/butr_l_aitodv2/trt/pipeline.json \
+    --infer-dir /path/to/AI-TOD/images/test --preprocess resize \
+    --image-list tools/benchmark/image_lists/aitodv2_test_1000.txt \
+    --output output/butr_l_aitodv2/trt/latency_round_${round}.json
+done
+```
+
+Use `tools/benchmark/image_lists/visdrone_test_1000.txt` for the VisDrone comparison. Average all three round means; do not select the fastest round. Engine rebuilding, model weights, GPU state and TensorRT tactic selection can still change exact latency.
+
+### Applying the same layout rewrite to fixed-query baselines
+
+The public optimizer also accepts full single-engine D-FINE/DEIM ONNX graphs. For a tiny-object baseline, export its local model YAML and matching checkpoint with `export_onnx.py`, then create a separate rewritten graph:
+
+```bash
+python tools/deployment/optimize_value_layout.py \
+  --onnx output/dfine_s/model.onnx --output output/dfine_s/model_splitfirst.onnx
+
+CUDA_VISIBLE_DEVICES=0 python tools/deployment/build_tensorrt.py \
+  --onnx output/dfine_s/model.onnx -o output/dfine_s/original.engine --fp32-sensitive
+
+CUDA_VISIBLE_DEVICES=0 python tools/deployment/build_tensorrt.py \
+  --onnx output/dfine_s/model_splitfirst.onnx \
+  -o output/dfine_s/splitfirst.engine --fp32-sensitive
+```
+
+Run each engine with the same image list, preprocessing, warmup count, timing API and build settings. The rewrite preserves the fixed query count and the complete single-engine graph; it does not introduce the BUTR engine boundary into the baseline. Our AI-TOD-v2 D-FINE-S/DEIM-S controls found this rewrite slower, so their reported deployments retain the original layout. See [the measured fairness controls and feature-memory explanation](deployment-results.md#layout-fairness-controls).
 
 ### Optimized execution
 

@@ -29,6 +29,9 @@ class TensorRTRunner:
         if self.engine is None:
             raise RuntimeError(f"Cannot load TensorRT engine: {engine_path}")
         self.context = self.engine.create_execution_context()
+        # Detailed engine metadata must not add NVTX instrumentation to inference.
+        # Apply the same choice to fixed-query and split dynamic-query engines.
+        self.context.nvtx_verbosity = trt.ProfilingVerbosity.NONE
         self.names = list(self.engine)
         self.input_names = [
             name

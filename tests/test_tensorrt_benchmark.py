@@ -2,6 +2,10 @@
 
 import contextlib
 import io
+import hashlib
+import json
+from pathlib import Path
+import tempfile
 import types
 import unittest
 from unittest.mock import patch
@@ -9,10 +13,53 @@ from unittest.mock import patch
 import numpy as np
 import torch
 
-from tools.benchmark.trt_benchmark import benchmark, build_parser
+from tools.benchmark.trt_benchmark import benchmark, build_parser, preread_images
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_input_initialization_reads_pinned_order_and_hashes_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "b.jpg").write_bytes(b"second")
+            (root / "a.jpg").write_bytes(b"first")
+            names = root / "images.txt"
+            names.write_text("b.jpg\na.jpg\n")
+            args = build_parser().parse_args(
+                [
+                    "--engine",
+                    "model.engine",
+                    "--infer-dir",
+                    directory,
+                    "--image-list",
+                    str(names),
+                    "--iterations",
+                    "2",
+                ]
+            )
+            paths, metadata = preread_images(args)
+            self.assertEqual([Path(path).name for path in paths], ["b.jpg", "a.jpg"])
+            self.assertEqual(metadata["files"][0]["sha256"], hashlib.sha256(b"second").hexdigest())
+            self.assertFalse(metadata["included_in_latency"])
+            names.with_suffix(".json").write_text(
+                json.dumps(
+                    {
+                        "format": "butr-benchmark-image-list-v1",
+                        "files": {
+                            "b.jpg": {"sha256": hashlib.sha256(b"second").hexdigest(), "bytes": 6},
+                            "a.jpg": {"sha256": hashlib.sha256(b"first").hexdigest(), "bytes": 5},
+                        },
+                    }
+                )
+            )
+            _, metadata = preread_images(args)
+            self.assertTrue(metadata["verified_against_manifest"])
+            (root / "a.jpg").write_bytes(b"modified")
+            with self.assertRaisesRegex(ValueError, "do not match"):
+                preread_images(args)
+            names.write_text("b.jpg\nb.jpg\n")
+            with self.assertRaisesRegex(ValueError, "unique"):
+                preread_images(args)
+
     def test_official_defaults(self):
         args = build_parser().parse_args(["--engine", "model.engine", "--infer-dir", "images"])
         self.assertEqual(
@@ -69,6 +116,7 @@ class BenchmarkTests(unittest.TestCase):
                 "2",
                 "--iterations",
                 "3",
+                "--no-cpu-preread",
             ]
         )
         times = iter([1.0, 1.003, 2.0, 2.008, 3.0, 3.001])
