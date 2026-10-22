@@ -27,17 +27,17 @@ AI-TOD-v2 and VisDrone results use 800 × 800 inputs and four feature levels, wi
 
 | Model | AP | #Params | Latency | GFLOPs | Config |
 | --- | ---: | ---: | ---: | ---: | :---: |
-| BUTR-S | 32.6 | 11.6M | 13.05&nbsp;ms | 112.5 | [yml](configs/models/BUTR-S-AITOD.yml) |
-| BUTR-M | 34.6 | 22.3M | 18.78&nbsp;ms | 244.8 | [yml](configs/models/BUTR-M-AITOD.yml) |
-| BUTR-L | 35.7 | 31.9M | 22.34&nbsp;ms | 326.1 | [yml](configs/models/BUTR-L-AITOD.yml) |
+| BUTR-S | 32.6 | 11.6M | 12.23&nbsp;ms | 112.5 | [yml](configs/models/BUTR-S-AITOD.yml) |
+| BUTR-M | 34.6 | 22.3M | 17.60&nbsp;ms | 244.8 | [yml](configs/models/BUTR-M-AITOD.yml) |
+| BUTR-L | 35.7 | 31.9M | 20.94&nbsp;ms | 326.1 | [yml](configs/models/BUTR-L-AITOD.yml) |
 
 ### VisDrone
 
 | Model | AP | #Params | Latency | GFLOPs | Config |
 | --- | ---: | ---: | ---: | ---: | :---: |
-| BUTR-S | 26.7 | 11.6M | 14.10&nbsp;ms | 114.9 | [yml](configs/models/BUTR-S-VisDrone.yml) |
-| BUTR-M | 29.4 | 22.3M | 20.54&nbsp;ms | 245.8 | [yml](configs/models/BUTR-M-VisDrone.yml) |
-| BUTR-L | 29.8 | 34.5M | 25.27&nbsp;ms | 329.5 | [yml](configs/models/BUTR-L-VisDrone.yml) |
+| BUTR-S | 26.7 | 11.6M | 13.26&nbsp;ms | 114.9 | [yml](configs/models/BUTR-S-VisDrone.yml) |
+| BUTR-M | 29.4 | 22.3M | 19.31&nbsp;ms | 245.8 | [yml](configs/models/BUTR-M-VisDrone.yml) |
+| BUTR-L | 29.8 | 34.5M | 23.76&nbsp;ms | 329.5 | [yml](configs/models/BUTR-L-VisDrone.yml) |
 
 GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Tesla T4 with TensorRT 10.4.0, FP16 enabled, and batch size 1; each result averages three rounds. See [deployment results and comparisons](docs/deployment-results.md) for the protocol and accuracy checks.
 
