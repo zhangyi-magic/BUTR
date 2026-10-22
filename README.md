@@ -45,24 +45,69 @@ GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Te
 
 Official D-FINE/DEIM checkpoints with and without BUTR on COCO val2017, without retraining.
 
-| Model | Variant | AP | Params | GFLOPs | Latency (ms) | Queries |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| D&#8209;FINE&#8209;S | Baseline | 48.5 | 10.2M | 25.2 | 3.63 | 300 |
-|  | +BUTR | 48.6 | 10.2M | 24.6 | 4.24 | 232 |
-| D&#8209;FINE&#8209;M | Baseline | 52.3 | 19.3M | 56.7 | 5.66 | 300 |
-|  | +BUTR | 52.4 | 19.3M | 56.6 | 6.44 | 289 |
-| D&#8209;FINE&#8209;L | Baseline | 54.0 | 30.8M | 91.0 | 7.94 | 300 |
-|  | +BUTR | 54.1 | 30.8M | 90.2 | 8.81 | 253 |
-| D&#8209;FINE&#8209;X | Baseline | 55.8 | 61.6M | 202.5 | 13.52 | 300 |
-|  | +BUTR | 55.9 | 61.6M | 201.7 | 13.84 | 253 |
-| DEIM&#8209;S | Baseline | 49.0 | 10.2M | 25.2 | 3.75 | 300 |
-|  | +BUTR | 49.0 | 10.2M | 24.6 | 4.32 | 239 |
-| DEIM&#8209;M | Baseline | 52.7 | 19.3M | 56.7 | 5.73 | 300 |
-|  | +BUTR | 52.8 | 19.3M | 55.9 | 6.38 | 236 |
-| DEIM&#8209;L | Baseline | 54.7 | 30.8M | 91.1 | 8.07 | 300 |
-|  | +BUTR | 54.9 | 30.8M | 89.8 | 8.83 | 227 |
-| DEIM&#8209;X | Baseline | 56.5 | 61.7M | 202.7 | 13.78 | 300 |
-|  | +BUTR | 56.6 | 61.7M | 200.6 | 13.71 | 183 |
+<table>
+  <thead>
+    <tr><th>Model</th><th>Variant</th><th>AP</th><th>#Params</th><th>Latency</th><th>GFLOPs</th><th>Queries</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">D&#8209;FINE&#8209;S</td>
+      <td>Baseline</td><td align="right">48.5</td><td align="right">10.2M</td><td align="right">3.63&nbsp;ms</td><td align="right">25.2</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">48.6</td><td align="right">10.2M</td><td align="right">4.24&nbsp;ms</td><td align="right">24.6</td><td align="right">232</td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">D&#8209;FINE&#8209;M</td>
+      <td>Baseline</td><td align="right">52.3</td><td align="right">19.3M</td><td align="right">5.66&nbsp;ms</td><td align="right">56.7</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">52.4</td><td align="right">19.3M</td><td align="right">6.44&nbsp;ms</td><td align="right">56.6</td><td align="right">289</td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">D&#8209;FINE&#8209;L</td>
+      <td>Baseline</td><td align="right">54.0</td><td align="right">30.8M</td><td align="right">7.94&nbsp;ms</td><td align="right">91.0</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">54.1</td><td align="right">30.8M</td><td align="right">8.81&nbsp;ms</td><td align="right">90.2</td><td align="right">253</td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">D&#8209;FINE&#8209;X</td>
+      <td>Baseline</td><td align="right">55.8</td><td align="right">61.6M</td><td align="right">13.52&nbsp;ms</td><td align="right">202.5</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">55.9</td><td align="right">61.6M</td><td align="right">13.84&nbsp;ms</td><td align="right">201.7</td><td align="right">253</td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">DEIM&#8209;S</td>
+      <td>Baseline</td><td align="right">49.0</td><td align="right">10.2M</td><td align="right">3.75&nbsp;ms</td><td align="right">25.2</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">49.0</td><td align="right">10.2M</td><td align="right">4.32&nbsp;ms</td><td align="right">24.6</td><td align="right">239</td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">DEIM&#8209;M</td>
+      <td>Baseline</td><td align="right">52.7</td><td align="right">19.3M</td><td align="right">5.73&nbsp;ms</td><td align="right">56.7</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">52.8</td><td align="right">19.3M</td><td align="right">6.38&nbsp;ms</td><td align="right">55.9</td><td align="right">236</td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">DEIM&#8209;L</td>
+      <td>Baseline</td><td align="right">54.7</td><td align="right">30.8M</td><td align="right">8.07&nbsp;ms</td><td align="right">91.1</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">54.9</td><td align="right">30.8M</td><td align="right">8.83&nbsp;ms</td><td align="right">89.8</td><td align="right">227</td>
+    </tr>
+    <tr>
+      <td rowspan="2" align="center" valign="middle">DEIM&#8209;X</td>
+      <td>Baseline</td><td align="right">56.5</td><td align="right">61.7M</td><td align="right">13.78&nbsp;ms</td><td align="right">202.7</td><td align="right">300</td>
+    </tr>
+    <tr>
+      <td>+BUTR</td><td align="right">56.6</td><td align="right">61.7M</td><td align="right">13.71&nbsp;ms</td><td align="right">200.6</td><td align="right">183</td>
+    </tr>
+  </tbody>
+</table>
 
 Baselines use 300 queries; BUTR uses `[100, 500]`. Latency is measured with TensorRT on Tesla T4 and averages three rounds; BUTR uses the split-before-transpose layout. See [safety factors](docs/coco.md#budget-settings) and [COCO setup, evaluation and profiling](docs/coco.md).
 
