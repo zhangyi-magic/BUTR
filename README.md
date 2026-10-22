@@ -45,18 +45,26 @@ GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Te
 
 Official D-FINE/DEIM checkpoints with and without BUTR on COCO val2017, without retraining.
 
-| Model | AP<br>baseline | AP<br>+&nbsp;BUTR | #Params | GFLOPs<br>baseline | GFLOPs<br>+&nbsp;BUTR | Latency<br>baseline | Latency<br>+&nbsp;BUTR | Mean queries<br>+&nbsp;BUTR | Safety<br>Factor |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| D&#8209;FINE&#8209;S | 48.5 | 48.6 | 10.2M | 25.2 | 24.6 | 3.63&nbsp;ms | 4.24&nbsp;ms | 232 | 3.0 |
-| D&#8209;FINE&#8209;M | 52.3 | 52.4 | 19.3M | 56.7 | 56.6 | 5.66&nbsp;ms | 6.44&nbsp;ms | 289 | 4.5 |
-| D&#8209;FINE&#8209;L | 54.0 | 54.1 | 30.8M | 91.0 | 90.2 | 7.94&nbsp;ms | 8.81&nbsp;ms | 253 | 3.5 |
-| D&#8209;FINE&#8209;X | 55.8 | 55.9 | 61.6M | 202.5 | 201.7 | 13.52&nbsp;ms | 13.84&nbsp;ms | 253 | 4.5 |
-| DEIM&#8209;S | 49.0 | 49.0 | 10.2M | 25.2 | 24.6 | 3.75&nbsp;ms | 4.32&nbsp;ms | 239 | 6.5 |
-| DEIM&#8209;M | 52.7 | 52.8 | 19.3M | 56.7 | 55.9 | 5.73&nbsp;ms | 6.38&nbsp;ms | 236 | 8.5 |
-| DEIM&#8209;L | 54.7 | 54.9 | 30.8M | 91.1 | 89.8 | 8.07&nbsp;ms | 8.83&nbsp;ms | 227 | 8.0 |
-| DEIM&#8209;X | 56.5 | 56.6 | 61.7M | 202.7 | 200.6 | 13.78&nbsp;ms | 13.71&nbsp;ms | 183 | 6.0 |
+| Model | Variant | AP | Params | GFLOPs | Latency (ms) | Queries |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| D&#8209;FINE&#8209;S | Baseline | 48.5 | 10.2M | 25.2 | 3.63 | 300 |
+|  | +BUTR | 48.6 | 10.2M | 24.6 | 4.24 | 232 |
+| D&#8209;FINE&#8209;M | Baseline | 52.3 | 19.3M | 56.7 | 5.66 | 300 |
+|  | +BUTR | 52.4 | 19.3M | 56.6 | 6.44 | 289 |
+| D&#8209;FINE&#8209;L | Baseline | 54.0 | 30.8M | 91.0 | 7.94 | 300 |
+|  | +BUTR | 54.1 | 30.8M | 90.2 | 8.81 | 253 |
+| D&#8209;FINE&#8209;X | Baseline | 55.8 | 61.6M | 202.5 | 13.52 | 300 |
+|  | +BUTR | 55.9 | 61.6M | 201.7 | 13.84 | 253 |
+| DEIM&#8209;S | Baseline | 49.0 | 10.2M | 25.2 | 3.75 | 300 |
+|  | +BUTR | 49.0 | 10.2M | 24.6 | 4.32 | 239 |
+| DEIM&#8209;M | Baseline | 52.7 | 19.3M | 56.7 | 5.73 | 300 |
+|  | +BUTR | 52.8 | 19.3M | 55.9 | 6.38 | 236 |
+| DEIM&#8209;L | Baseline | 54.7 | 30.8M | 91.1 | 8.07 | 300 |
+|  | +BUTR | 54.9 | 30.8M | 89.8 | 8.83 | 227 |
+| DEIM&#8209;X | Baseline | 56.5 | 61.7M | 202.7 | 13.78 | 300 |
+|  | +BUTR | 56.6 | 61.7M | 200.6 | 13.71 | 183 |
 
-Baselines use 300 queries; BUTR uses `[100, 500]`. Latency is measured with TensorRT on Tesla T4 and averages three rounds; BUTR uses the split-before-transpose layout. See [COCO setup, evaluation and profiling](docs/coco.md).
+Baselines use 300 queries; BUTR uses `[100, 500]`. Latency is measured with TensorRT on Tesla T4 and averages three rounds; BUTR uses the split-before-transpose layout. See [safety factors](docs/coco.md#budget-settings) and [COCO setup, evaluation and profiling](docs/coco.md).
 
 ## Installation
 
