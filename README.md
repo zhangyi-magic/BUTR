@@ -39,7 +39,7 @@ AI-TOD-v2 and VisDrone results use 800 × 800 inputs and four feature levels, wi
 | BUTR-M | 29.4 | 22.3M | 20.54&nbsp;ms | 245.8 | [yml](configs/models/BUTR-M-VisDrone.yml) |
 | BUTR-L | 29.8 | 34.5M | 25.27&nbsp;ms | 329.5 | [yml](configs/models/BUTR-L-VisDrone.yml) |
 
-GFLOPs and latency are reported as averages. See [deployment results and comparisons](docs/deployment-results.md) for the protocol and accuracy checks.
+GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Tesla T4 with TensorRT 10.4.0, FP16 enabled, and batch size 1; each result averages three rounds. See [deployment results and comparisons](docs/deployment-results.md) for the protocol and accuracy checks.
 
 ### COCO inference-time plug-in
 
@@ -57,6 +57,19 @@ Official D-FINE/DEIM checkpoints with and without BUTR on COCO val2017, without 
 | DEIM&#8209;X | 56.5 | 56.6 | 61.7M | 202.7 | 200.6 | 183 |              6.0 |
 
 Baselines use 300 queries; BUTR uses `[100, 500]`. See [COCO setup, evaluation and profiling](docs/coco.md).
+
+TensorRT deployment latency on Tesla T4 (three-round means; BUTR uses splitfirst):
+
+| Model | Latency baseline | Latency +&nbsp;BUTR |
+| --- | ---: | ---: |
+| D&#8209;FINE&#8209;S | 3.63&nbsp;ms | 4.24&nbsp;ms |
+| D&#8209;FINE&#8209;M | 5.66&nbsp;ms | 6.44&nbsp;ms |
+| D&#8209;FINE&#8209;L | 7.94&nbsp;ms | 8.81&nbsp;ms |
+| D&#8209;FINE&#8209;X | 13.52&nbsp;ms | 13.84&nbsp;ms |
+| DEIM&#8209;S | 3.75&nbsp;ms | 4.32&nbsp;ms |
+| DEIM&#8209;M | 5.73&nbsp;ms | 6.38&nbsp;ms |
+| DEIM&#8209;L | 8.07&nbsp;ms | 8.83&nbsp;ms |
+| DEIM&#8209;X | 13.78&nbsp;ms | 13.71&nbsp;ms |
 
 ## Installation
 

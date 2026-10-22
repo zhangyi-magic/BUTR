@@ -30,3 +30,6 @@ tmp/
 visualize_all/
 torch_results.*
 onnx_results.*
+
+# Local paper sources and assets
+/BUTR_NeurIPS/
