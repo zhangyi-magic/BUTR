@@ -21,7 +21,7 @@ If you find BUTR useful, please consider giving this repository a star ⭐.</str
 
 ## Main results
 
-AI-TOD-v2 and VisDrone results use 800 × 800 inputs and four feature levels, with training on trainval and evaluation on test.
+AI-TOD-v2 and VisDrone results are obtained with 800 × 800 inputs and four feature levels. For each dataset, BUTR is trained on the `trainval` split and evaluated on the `test` split.
 
 ### AI-TOD-v2
 
@@ -43,7 +43,7 @@ GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Te
 
 ### COCO inference-time plug-in
 
-Official D-FINE/DEIM checkpoints with and without BUTR on COCO val2017, without retraining.
+Official D-FINE/DEIM checkpoints with and without BUTR on COCO `val2017`, without retraining.
 
 <table>
   <thead>
