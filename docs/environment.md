@@ -1,6 +1,6 @@
 # Training environment and installation checks
 
-The installation commands in the [README](../README.md#installation) reproduce the Python and PyTorch versions in the reference training environment below. The operating system, compiler, and hardware entries describe that environment; the compiler must support C++17, but its exact patch version is not required.
+The [README](../README.md#installation) provides a minimal installation entry. Core dependency bounds follow official Dome-DETR: PyTorch >= 2.0.1, torchvision >= 0.15.2, and faster-coco-eval >= 1.6.5. The table below records one tested environment, rather than minimum required versions. A compiler with C++17 support is required.
 
 | Component | Version |
 | --- | --- |
@@ -18,13 +18,24 @@ The PyTorch build uses CUDA 11.8 libraries, independently of the system CUDA too
 
 ## Dependency scope
 
-The Conda commands use full channel URLs together with `--override-channels`. Full URLs bypass channel-name mappings from `channel_alias` or `custom_channels`; `--override-channels` alone only replaces the configured channel list. This avoids requesting an unavailable mirror such as a missing `nvidia` channel, without changing the machine's global Conda configuration. The commands also avoid Anaconda default channels that may require a separate Terms of Service acceptance step.
+The single root [requirements.txt](../requirements.txt) follows Dome-DETR's published version constraints for shared dependencies and includes the additional libraries used by this repository. Install a compatible CUDA-enabled PyTorch/torchvision pair; lower bounds do not mean that arbitrary combinations of those packages are compatible.
 
-PyTorch and torchvision are selected from the `pytorch` channel with CUDA build constraints. Installing `pytorch-cuda=11.8` alone does not guarantee that the solver selects a CUDA PyTorch build; keep the build constraints in the README installation command.
+To reproduce the reference environment above, use this expanded installation instead of the minimal README commands:
 
-The Conda commands are joined with `&&` so a failed step stops that block. Run the pip block only after the Conda installation and compiler setup succeed. If the `BUTR` environment already exists, skip `conda create` and activate it. If the PyTorch installation failed, rerun the `conda install` step with the full URLs. The requirements pin the PyTorch version but do not select its CUDA build.
+```bash
+conda create -n BUTR python=3.10.14 --override-channels \
+  -c https://conda.anaconda.org/conda-forge -y &&
+conda activate BUTR &&
+conda install "pytorch=2.4.0=*cuda11.8*" "torchvision=0.19.0=*cu118*" pytorch-cuda=11.8 \
+  numpy=2.2.6 pyyaml=6.0.3 --override-channels \
+  -c https://conda.anaconda.org/pytorch \
+  -c https://conda.anaconda.org/nvidia \
+  -c https://conda.anaconda.org/conda-forge -y &&
+python -m pip install -r requirements.txt &&
+python -m pip check
+```
 
-The single root [requirements.txt](../requirements.txt) pins direct project dependencies. It covers the main training and evaluation pipeline, PyTorch image/video inference, Grain preprocessing, profiling, and the declared dependencies of the DEIM checkout used by the COCO plug-in.
+Full channel URLs together with `--override-channels` bypass unavailable mirror mappings without changing global Conda configuration. Explicit CUDA build constraints prevent CPU-only PyTorch installations. If the environment already exists, skip `conda create` and activate it. Compiler setup is described below.
 
 Transitive dependencies, Conda build identifiers, system libraries, and the NVIDIA driver are not fully pinned.
 

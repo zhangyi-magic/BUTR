@@ -1,19 +1,17 @@
-# Direct dependencies pinned to the author's exported Linux training environment.
-# Install the CUDA-enabled PyTorch/torchvision pair first; see README.md.
-# This is not a complete lock of all transitive dependencies or Conda builds.
-torch==2.4.0
-torchvision==0.19.0
-faster-coco-eval==1.7.1
-faster-coco-eval-aitod==1.0.2
-numpy==2.2.6
-Pillow==12.1.0
-pycocotools==2.0.11
-PyYAML==6.0.3
-tensorboard==2.20.0
-scipy==1.15.3
-matplotlib==3.10.8
-opencv-python==4.13.0.90
-calflops==0.3.2
-transformers==4.57.6
-scikit-image==0.25.2
-tqdm==4.67.1
+# Core dependency bounds follow the official Dome-DETR requirements.
+torch>=2.0.1
+torchvision>=0.15.2
+faster-coco-eval>=1.6.5
+faster-coco-eval-aitod
+numpy
+Pillow
+pycocotools
+PyYAML
+tensorboard
+scipy
+matplotlib
+opencv-python
+calflops
+transformers
+scikit-image
+tqdm
