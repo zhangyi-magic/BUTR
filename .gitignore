@@ -27,10 +27,11 @@ tmp/
 *.onnx
 *.engine
 *.log
-# Published evaluation weights and training logs
-!/checkpoints/butr_s_aitodv2.pth
+# Published training logs; checkpoint binaries are hosted on GitHub Releases
 !/docs/logs/
 !/docs/logs/butr_s_aitodv2.log
+!/docs/logs/butr_l_aitodv2.log
+!/docs/logs/butr_s_visdrone.log
 visualize_all/
 torch_results.*
 onnx_results.*

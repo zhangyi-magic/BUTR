@@ -27,15 +27,15 @@ AI-TOD-v2 and VisDrone results are obtained with 800 × 800 inputs and four feat
 
 | Model | AP | #Params | Latency | GFLOPs | Config | Checkpoint | Logs |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| BUTR-S | 32.7 | 11.6M | 12.23&nbsp;ms | 112.5 | [yml](configs/models/BUTR-S-AITOD.yml) | [32.7](checkpoints/butr_s_aitodv2.pth) | [url](docs/logs/butr_s_aitodv2.log) |
+| BUTR-S | 32.7 | 11.6M | 12.23&nbsp;ms | 112.5 | [yml](configs/models/BUTR-S-AITOD.yml) | [32.7](https://github.com/zhangyi-magic/BUTR/releases/download/checkpoints/butr_s_aitodv2.pth) | [url](docs/logs/butr_s_aitodv2.log) |
 | BUTR-M | 34.6 | 22.3M | 17.60&nbsp;ms | 244.8 | [yml](configs/models/BUTR-M-AITOD.yml) | | |
-| BUTR-L | 35.7 | 31.9M | 20.94&nbsp;ms | 326.1 | [yml](configs/models/BUTR-L-AITOD.yml) | | |
+| BUTR-L | 35.7 | 31.9M | 20.94&nbsp;ms | 326.1 | [yml](configs/models/BUTR-L-AITOD.yml) | [35.7](https://github.com/zhangyi-magic/BUTR/releases/download/checkpoints/butr_l_aitodv2.pth) | [url](docs/logs/butr_l_aitodv2.log) |
 
 ### VisDrone
 
 | Model | AP | #Params | Latency | GFLOPs | Config | Checkpoint | Logs |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| BUTR-S | 26.7 | 11.6M | 13.26&nbsp;ms | 114.9 | [yml](configs/models/BUTR-S-VisDrone.yml) | | |
+| BUTR-S | 26.7 | 11.6M | 13.26&nbsp;ms | 114.9 | [yml](configs/models/BUTR-S-VisDrone.yml) | | [url](docs/logs/butr_s_visdrone.log) |
 | BUTR-M | 29.4 | 22.3M | 19.31&nbsp;ms | 245.8 | [yml](configs/models/BUTR-M-VisDrone.yml) | | |
 | BUTR-L | 29.8 | 34.5M | 23.76&nbsp;ms | 329.5 | [yml](configs/models/BUTR-L-VisDrone.yml) | | |
 
