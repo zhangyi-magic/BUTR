@@ -41,7 +41,28 @@ AI-TOD-v2 and VisDrone results are obtained with 800 × 800 inputs and four feat
 
 GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Tesla T4 with TensorRT 10.4.0, FP16 enabled, and batch size 1; each result averages three rounds. See [deployment results and comparisons](docs/deployment-results.md) for the protocol and accuracy checks.
 
-### COCO inference-time plug-in
+<details>
+<summary><strong>Sorghum-Grain-Count</strong></summary>
+
+[Sorghum-Grain-Count](https://github.com/swarajksu/sorghum-grain-count), using 800 × 800 nonempty crops with stride 640 (paper Appendix G, Table 11).
+
+| Model | AP | Mean queries |
+| :---: | :---: | :---: |
+| D-FINE-L | 57.0 | 400 |
+| D-FINE-L | 57.7 | 1100 |
+| DEIM-L | 57.2 | 400 |
+| DEIM-L | 58.0 | 1100 |
+| Dome-DETR-L | 57.6 | 1103 |
+| BUTR-L | 58.0 | 378 |
+
+[Data preparation and training](docs/grain.md) · [Configs](configs/models/grain/)
+
+</details>
+
+<br>
+
+<details>
+<summary><strong>COCO inference-time plug-in</strong></summary>
 
 Official D-FINE/DEIM checkpoints with and without BUTR on COCO `val2017`, without retraining.
 
@@ -111,6 +132,8 @@ Official D-FINE/DEIM checkpoints with and without BUTR on COCO `val2017`, withou
 
 Baselines use 300 queries; BUTR uses `[100, 500]`. Latency is measured with TensorRT on Tesla T4 and averages three rounds; BUTR uses the split-before-transpose layout. See [safety factors](docs/coco.md#budget-settings) and [COCO setup, evaluation and profiling](docs/coco.md).
 
+</details>
+
 ## Installation
 
 ```bash
@@ -157,26 +180,6 @@ CUDA_VISIBLE_DEVICES=0 python tools/inference/torch_inf.py -c configs/models/BUT
 ```
 
 [Image/video options](docs/usage.md) · [ONNX and TensorRT deployment](docs/tensorrt.md) · [COCO plug-in evaluation](docs/coco.md)
-
-## Supplementary experiment: Grain
-
-<details>
-<summary>Results, data preparation and training</summary>
-
-[Sorghum-Grain-Count](https://github.com/swarajksu/sorghum-grain-count), using 800 × 800 nonempty crops with stride 640 (paper Appendix G, Table 11).
-
-| Model | AP | Mean queries |
-| :---: | :---: | :---: |
-| D-FINE-L | 57.0 | 400 |
-| D-FINE-L | 57.7 | 1100 |
-| DEIM-L | 57.2 | 400 |
-| DEIM-L | 58.0 | 1100 |
-| Dome-DETR-L | 57.6 | 1103 |
-| BUTR-L | 58.0 | 378 |
-
-[Data preparation and training](docs/grain.md) · [Configs](configs/models/grain/)
-
-</details>
 
 ## Tips
 
