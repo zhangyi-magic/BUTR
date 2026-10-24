@@ -59,8 +59,6 @@ GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Te
 
 </details>
 
-<br>
-
 <details>
 <summary><strong>COCO inference-time plug-in</strong></summary>
 
