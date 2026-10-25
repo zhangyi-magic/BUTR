@@ -160,16 +160,29 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 \
 
 Select the model YAML for the desired dataset and scale. See [training options](docs/usage.md#training-options) and [baseline protocols](docs/baselines.md).
 
+### Tuning
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 \
+  --master_port=7777 train.py -c configs/models/BUTR-L-AITOD.yml --seed 0 \
+  -t /path/to/checkpoint.pth --output-dir output/butr_l_aitodv2_tuning
+```
+
+Use `-t` to initialize model weights for fine-tuning; use `-r` to resume training from a full training checkpoint.
+
 ## Evaluation
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python train.py -c configs/models/BUTR-L-AITOD.yml --test-only \
-  -r output/butr_l_aitodv2/best_stg2.pth
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 \
+  --master_port=7777 train.py -c configs/models/BUTR-L-AITOD.yml --test-only \
+  -r /path/to/checkpoint.pth -u val_dataloader.total_batch_size=8
 ```
 
-Add `-u val_dataloader.total_batch_size=1` for per-image query statistics. [Evaluation details](docs/usage.md#distributed-evaluation-and-query-counts).
+This uses one image per GPU for per-image query statistics. [Evaluation details](docs/usage.md#distributed-evaluation-and-query-counts).
 
 ## Inference
+
+Image/video inference uses a single GPU.
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python tools/inference/torch_inf.py -c configs/models/BUTR-L-AITOD.yml \
