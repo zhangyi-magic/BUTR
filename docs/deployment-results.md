@@ -2,7 +2,7 @@
 
 ## Reproduction environment and hardware
 
-The paper latency tables below follow the revised main tables. Detailed run statistics, GPU identifiers, calibration, and layout controls describe the recorded benchmark runs; tables explicitly marked historical preserve those measurements separately from the revised paper results.
+The latency tables below match the current paper main tables. Separate layout controls document the deployment optimization and its accuracy checks.
 
 The deployment benchmarks run on a single NVIDIA Tesla T4 (16 GB) allocated by Kaggle, using an isolated Python 3.10.14 environment with PyTorch 2.4.0+cu118 and TensorRT 10.4.0. Batch size is 1. The two available T4 GPUs are not combined: each trial uses one GPU. The latest COCO, L-scale tiny-object, and DQ-DETR results use the same physical T4 (`GPU-c5ea4daf-f200-5732-d4d0-d72250c3c26a`). S/M results and the separate memory measurements retain their previously completed runs.
 
@@ -30,7 +30,7 @@ Before importing the GPU inference stack, every worker reads and hash-checks all
 - Hardware and software: one NVIDIA T4, TensorRT 10.4.0, PyTorch 2.4.0+cu118, batch size 1, and 800 × 800 inputs. Trials execute sequentially on the same physical GPU.
 - Image selection: a fixed 1,000-image test subset per dataset, with identical images and ordering for every model within that dataset. AI-TOD-v2 has 14,018 test images. VisDrone uses 1,000 images uniformly selected from the full 1,610-image test split, sorted by image ID, at indices `floor(i * 1609 / 999)` for `i=0..999`; it does not use the 120-image moderate subset. These are timing subsets, not full-test AP evaluations.
 - Input initialization: every worker performs the same CPU JPEG pre-read and hash check described above before GPU inference initialization. This step is not included in latency.
-- Timing: three rounds per model, each with 1,000 synthetic-input warmup calls followed by 1,000 real images. The historical timing tables report the mean of the three round means and their population standard deviation. The paper tables report latency to two decimal places. Every image and round is retained.
+- Timing: benchmark runs use three rounds per model, each with 1,000 synthetic-input warmup calls followed by 1,000 real images. The paper tables report latency to two decimal places.
 - Timer and execution: the upstream D-FINE/DEIM `TRTInference.speed` and synchronized `TimeProfiler` boundary, using synchronous TensorRT `execute_v2`. CUDA Graph execution and asynchronous execution are not used. Runtime NVTX verbosity is disabled uniformly.
 - Included work: the complete exported model pipeline, all engine executions, budget readback and synchronization, shape handling, and exported detection post-processing. Image loading, decoding, resizing, normalization, and input transfer are outside the timed interval. This is model-pipeline latency, not file-to-detection wall-clock latency.
 - Precision: FP16-enabled engines with normalization, sensitive decoder operations, and post-processing constrained to FP32. DQ-DETR additionally protects bounding-box and sampling-coordinate operations with its validated coordinate precision policy. These are mixed-precision deployments, not all-operator FP16 engines. TF32 is disabled; builder timing iterations are 8.
@@ -57,31 +57,7 @@ These latencies reproduce the current paper main table and are the reference val
 
 Same-scale Dome-DETR/BUTR speedups are 1.9×, 1.7×, and 1.6× for S/M/L, rounded to one decimal place.
 
-### Historical timing and memory measurements
-
-The following earlier run statistics are retained for reference. They are not the current paper latency table. Their round SDs, timing-subset query counts, and separately sampled memory peaks must not be combined with the paper latencies above; updated round statistics and memory measurements were not supplied with the revised main table.
-
-| Model | Latency (ms) | Round SD (ms) | Mean queries | Sampled process GPU peak (MiB) |
-| --- | ---: | ---: | ---: | ---: |
-| BUTR-S | 13.054 | 0.040 | 325.768 | 672 |
-| BUTR-M | 18.780 | 0.105 | 319.542 | 710 |
-| BUTR-L | 20.938 | 0.137 | 316.845 | 730 |
-| D-FINE-S | 12.195 | 0.016 | 600 | 450 |
-| D-FINE-M | 18.252 | 0.124 | 600 | 478 |
-| D-FINE-L | 20.344 | 0.071 | 600 | 498 |
-| DEIM-S† | 12.218 | 0.010 | 600 | 450 |
-| DEIM-M | 18.353 | 0.138 | 600 | 478 |
-| DEIM-L | 20.337 | 0.028 | 600 | 498 |
-| Dome-DETR-S | 24.680 | 0.017 | 637.523 | 594 |
-| Dome-DETR-M | 31.165 | 0.114 | 627.621 | 628 |
-| Dome-DETR-L | 33.302 | 0.083 | 644.144 | 648 |
-| DQ-DETR | 205.584 | 0.115 | 404 | 1168 |
-
-DQ-DETR has a single model configuration rather than S/M/L variants and is included as its own row.
-
-D-FINE and DEIM use 600 fixed queries. BUTR and Dome-DETR retain dynamic query counts within `[300, 1500]`; DQ-DETR retains its `[300, 500, 900, 1500]` query buckets. DQ-DETR uses five feature levels and ImageNet input normalization; the other families use four feature levels. These configurations differ from the official 640 × 640, three-feature-level, 300-query D-FINE/DEIM COCO models, so their published COCO latency numbers are not directly comparable to this table.
-
-Memory is measured in a separate process per model, after 20 warmup calls and during the same 1,000-image sequence, using 20 ms NVML sampling. It covers whole-process GPU residency, including CUDA/library state, TensorRT weights, contexts, workspace, I/O, and GPU preprocessing buffers. Engine construction and load-time peaks are excluded. It is a sampled inference peak, not an exact allocator high-water mark or a measurement of model weights alone. Memory-phase timings are excluded from the latency table.
+D-FINE and DEIM use 600 fixed queries. BUTR and Dome-DETR use budgets within `[300, 1500]`; DQ-DETR uses its original `[300, 500, 900, 1500]` query buckets and has a single model configuration.
 
 ## VisDrone paper latency
 
@@ -103,35 +79,11 @@ Memory is measured in a separate process per model, after 20 warmup calls and du
 
 Same-scale Dome-DETR/BUTR speedups are 1.8×, 1.5×, and 1.5× for S/M/L, rounded to one decimal place.
 
-### Historical timing and memory measurements
+D-FINE and DEIM use 400 fixed queries; BUTR and Dome-DETR use budgets within `[250, 500]`. DQ-DETR uses its original `[300, 500, 900, 1500]` query buckets and the recovered VisDrone checkpoint. For DEIM-S/M, same-scale D-FINE weights benchmark the DEIM inference architecture with its SiLU activation settings; these are architecture timing measurements.
 
-The following earlier run statistics are retained for reference under the same scope as the historical AI-TOD-v2 measurements above.
+### BUTR layout control experiment
 
-The same timing and memory protocols apply to the following VisDrone deployments. BUTR uses the split-before-transpose layout; the other models retain their original layouts.
-
-| Model | Latency (ms) | Round SD (ms) | Mean queries | Sampled process GPU peak (MiB) |
-| --- | ---: | ---: | ---: | ---: |
-| BUTR-S | 14.101 | 0.004 | 444.523 | 708 |
-| BUTR-M | 20.537 | 0.101 | 416.195 | 746 |
-| BUTR-L | 23.763 | 0.172 | 400.060 | 776 |
-| D-FINE-S | 12.168 | 0.054 | 400 | 508 |
-| D-FINE-M | 18.541 | 0.170 | 400 | 536 |
-| D-FINE-L | 22.065 | 0.059 | 400 | 562 |
-| DEIM-S | 12.030 | 0.031 | 400 | 508 |
-| DEIM-M | 18.633 | 0.096 | 400 | 536 |
-| DEIM-L | 22.371 | 0.025 | 400 | 562 |
-| Dome-DETR-S | 24.176 | 0.084 | 385.231 | 630 |
-| Dome-DETR-M | 30.864 | 0.087 | 375.738 | 664 |
-| Dome-DETR-L | 34.472 | 0.230 | 372.191 | 690 |
-| DQ-DETR | 211.176 | 0.159 | 508.8 | 1208 |
-
-D-FINE and DEIM use 400 fixed queries; BUTR and Dome-DETR use budgets within `[250, 500]`. DQ-DETR uses its original `[300, 500, 900, 1500]` query buckets and the recovered VisDrone checkpoint. For DEIM-S/M, same-scale D-FINE weights are used to benchmark the DEIM inference architecture with its SiLU activation settings; those rows are architecture timing measurements, not DEIM training or accuracy reproduction.
-
-Each reported latency uses three complete rounds. Interrupted or partial trials are not pooled into the means. The latest L-scale and DQ-DETR measurements use the selected physical T4 and identical image ordering within each dataset; S/M retain the earlier completed suite.
-
-### Historical BUTR layout comparison
-
-Original and split-before-transpose deployments retain the same per-image budgets and share the same precision policy and timing boundary.
+Original and split-before-transpose deployments retain the same per-image budgets and share the same precision policy and timing boundary. This separate paired experiment measures the effect of the layout rewrite; its absolute latencies are not the paper table values. GPU memory is the whole-process inference peak sampled with NVML every 20 ms after 20 warmup calls, excluding engine construction and load-time peaks.
 
 | Model | Original latency | Split-before-transpose latency | Original sampled GPU peak | Split-before-transpose sampled GPU peak |
 | --- | ---: | ---: | ---: | ---: |
