@@ -8,7 +8,7 @@
 * 📧 Corresponding author: <a href="mailto:shuo.chen@nju.edu.cn">shuo.chen@nju.edu.cn</a></p>
 
 <p align="center"><strong>This repository also supports <a href="https://github.com/RicePasteM/Dome-DETR">Dome-DETR</a>, <a href="https://github.com/Peterande/D-FINE">D-FINE</a>, and <a href="https://github.com/Intellindust-AI-Lab/DEIM">DEIM</a> for tiny object detection.<br>
-If you find BUTR useful, please consider giving this repository a star ⭐.</strong></p>
+If you find <a href="https://arxiv.org/abs/2610.33430">BUTR</a> useful, please consider giving this repository a star ⭐.</strong></p>
 
 <p align="center"><img src="static/model.png" alt="BUTR architecture and query initialization" width="100%"></p>
 
