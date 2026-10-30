@@ -199,12 +199,11 @@ CUDA_VISIBLE_DEVICES=0 python tools/inference/torch_inf.py -c configs/models/BUT
 ## Citation
 
 ```bibtex
-@inproceedings{zhang2026butr,
-  title     = {Dynamic Query as Budgeting for Tiny Object Detection},
-  author    = {Zhang, Yi and Xiong, Di and Gao, Ge and Zhang, Xiangyue and
-               Qiu, Yihang and Zhou, Yuxuan and Chen, Shuo},
-  booktitle = {Advances in Neural Information Processing Systems},
-  year      = {2026}
+@article{zhang2026dynamic,
+  title={Dynamic Query as Budgeting for Tiny Object Detection},
+  author={Zhang, Yi and Xiong, Di and Gao, Ge and Zhang, Xiangyue and Qiu, Yihang and Zhou, Yuxuan and Chen, Shuo},
+  journal={arXiv preprint arXiv:2610.33430},
+  year={2026}
 }
 ```
 
