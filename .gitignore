@@ -16,7 +16,7 @@ build/
 
 # Local data, weights, and experiment artifacts
 butr-env-info/
-data/
+/data/
 weight/**
 !weight/README.md
 output/

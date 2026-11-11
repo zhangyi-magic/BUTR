@@ -8,6 +8,11 @@ __include__: [
 
 output_dir: ./output/butr_s_visdrone
 
+use_amp: False
+
+DomeCriterion:
+  scale_norm_bbox: False
+
 
 BUTR:
   backbone: HGNetv2
@@ -76,7 +81,7 @@ lr_scheduler:
 
 
 # Increase to search for the optimal ema
-epoches: 120
+epoches: 160
 train_dataloader:
   dataset:
     transforms:

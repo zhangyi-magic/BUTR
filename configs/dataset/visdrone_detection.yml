@@ -20,7 +20,6 @@ train_dataloader:
       type: Compose
       ops:
         - {type: Mosaic, size: [800, 800], p: 1.0}
-        - {type: MixUp, alpha: 1.5, p: 0.2}
         - {type: RandomPhotometricDistort, p: 0.5}
         - {type: RandomZoomOut, fill: 0}
         - {type: RandomIoUCrop, p: 0.8}
@@ -33,7 +32,7 @@ train_dataloader:
       policy:
         name: stop_epoch
         epoch: 72 # epoch in [71, ~) stop `ops`
-        ops: ['Mosaic', 'MixUp', 'RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+        ops: ['Mosaic', 'RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
   collate_fn:
     type: BatchImageCollateFunction
     base_size: 800
@@ -47,7 +46,7 @@ val_dataloader:
   dataset:
     type: CocoDetection
     img_folder: ./data/visdrone/VisDrone2019-DET-test/images
-    ann_file: ./data/visdrone/VisDrone2019-DET_test_coco_moderate.json
+    ann_file: ./data/visdrone/VisDrone2019-DET_test_coco.json
 
     return_masks: False
     transforms:
