@@ -16,7 +16,7 @@ If you find <a href="https://arxiv.org/abs/2610.33430">BUTR</a> useful, please c
 
 ## Updates
 
-- [2026.11] BUTR-S and BUTR-L checkpoints for AI-TOD-v2 and a retrained BUTR-S checkpoint for VisDrone are now available. More checkpoints will be released progressively.
+- [2026.11] BUTR-S and BUTR-L checkpoints for AI-TOD-v2 and VisDrone are now available. More checkpoints will be released progressively.
 - [2026.10] Repository created; code refactored.
 - [2026.09] Our paper has been accepted at NeurIPS 2026!
 
@@ -38,7 +38,7 @@ AI-TOD-v2 and VisDrone results are obtained with 800 × 800 inputs and four feat
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | BUTR-S | 26.8 | 11.6M | 13.26&nbsp;ms | 114.9 | [yml](configs/models/BUTR-S-VisDrone.yml) | [26.8](https://github.com/zhangyi-magic/BUTR/releases/download/checkpoints/butr_s_visdrone.pth) | [url](docs/logs/butr_s_visdrone.log) |
 | BUTR-M | 29.4 | 22.3M | 19.31&nbsp;ms | 245.8 | [yml](configs/models/BUTR-M-VisDrone.yml) | | |
-| BUTR-L | 29.8 | 34.5M | 23.76&nbsp;ms | 329.5 | [yml](configs/models/BUTR-L-VisDrone.yml) | | |
+| BUTR-L | 29.8 | 34.5M | 23.76&nbsp;ms | 329.5 | [yml](configs/models/BUTR-L-VisDrone.yml) | [29.8](https://github.com/zhangyi-magic/BUTR/releases/download/checkpoints/butr_l_visdrone.pth) | [url](docs/logs/butr_l_visdrone.log) |
 
 GFLOPs and latency are reported as averages. Latency is measured on an NVIDIA Tesla T4 with TensorRT 10.4.0, FP16 enabled, and batch size 1; each result averages three rounds. See [deployment results and comparisons](docs/deployment-results.md) for the protocol and accuracy checks.
 

@@ -8,6 +8,11 @@ __include__: [
 
 output_dir: ./output/butr_l_visdrone
 
+use_amp: False
+
+DomeCriterion:
+  scale_norm_bbox: False
+
 
 BUTR:
   backbone: HGNetv2
