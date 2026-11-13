@@ -7,6 +7,7 @@ Copyright (c) 2024 The D-FINE Authors. All Rights Reserved.
 """
 
 import copy
+import random
 from collections import OrderedDict
 from math import ceil
 
@@ -281,6 +282,7 @@ class HybridEncoder(nn.Module):
         defe_type="default",
         use_mwas=False,
         mwas_window_size=20,
+        mwas_window_mode="partitions",
     ):
         super().__init__()
         self.num_feature_levels = num_feature_levels
@@ -301,6 +303,9 @@ class HybridEncoder(nn.Module):
         self.defe_type = defe_type
         self.use_mwas = use_mwas
         self.mwas_window_size = mwas_window_size
+        if mwas_window_mode not in ("partitions", "window_size"):
+            raise ValueError(f"Unknown MWAS window mode: {mwas_window_mode}")
+        self.mwas_window_mode = mwas_window_mode
 
         # channel projection
         self.input_proj = nn.ModuleList()
@@ -477,6 +482,44 @@ class HybridEncoder(nn.Module):
             start_idx = end_idx
         return restored_feats
 
+    def adaptive_defe_filter(self, defe_feature, init_thresh=0.05, step=0.01):
+        """
+        自适应调整阈值直到每个样本找到有效区域
+        Args:
+            defe_feature: 置信度特征图 [B, 1, H, W]
+            init_thresh: 初始阈值
+            step: 阈值调整步长
+        Returns:
+            defe_feature_filtered: 调整后的二值掩码 [B, 1, H, W]
+        """
+        B = defe_feature.shape[0]
+        device = defe_feature.device
+        final_mask = torch.zeros_like(defe_feature, dtype=torch.bool)
+
+        # 对每个样本独立处理
+        for b in range(B):
+            # 提取单样本置信图 [1, H, W]
+            single_feat = defe_feature[b:b+1]
+            current_thresh = init_thresh
+            found = False
+
+            # 阈值搜索循环
+            while current_thresh >= 0:
+                mask = (single_feat > current_thresh)
+                if mask.any():
+                    final_mask[b:b+1] = mask
+                    found = True
+                    break
+                current_thresh = round(current_thresh - step, 2)
+
+            # 未找到有效区域则随机选择一个点加强
+            if not found:
+                final_mask[b:b+1] = torch.zeros_like(single_feat, dtype=torch.bool)
+                final_mask[b:b+1][:, random.randint(0, single_feat.shape[1] - 1), random.randint(0, single_feat.shape[2] - 1)] = True
+                print(f"Batch {b}: No valid region found, use random point enhancement")
+
+        return final_mask
+
     def adaptive_defe_filter_fast(self, defe_feature, init_thresh=0.05, step=0.01):
         # defe_feature: [B,1,H,W], float
         B, _, H, W = defe_feature.shape
@@ -537,7 +580,14 @@ class HybridEncoder(nn.Module):
             out["defe"]["density_map_pooled"] = defe_feature_pooled
             if self.use_mwas:
                 H, W = proj_feats[1].shape[2:]
-                defe_feature_filtered = self.adaptive_defe_filter_fast(
+                if self.mwas_window_mode == "window_size":
+                    assert H % self.mwas_window_size == 0 and W % self.mwas_window_size == 0, (
+                        "MWAS feature dimensions must be divisible by window_size"
+                    )
+                filter_density = (self.adaptive_defe_filter
+                                  if self.mwas_window_mode == "window_size"
+                                  else self.adaptive_defe_filter_fast)
+                defe_feature_filtered = filter_density(
                     F.interpolate(
                         defe_feature_pooled, size=(H, W), mode="bilinear", align_corners=True
                     )
@@ -549,7 +599,10 @@ class HybridEncoder(nn.Module):
                     .to(proj_feats[1].device)
                 )
                 enhanced_memory, defe_window_mask = self.mwas_processor(
-                    proj_feats[1], defe_feature_filtered, self.mwas_window_size, glob_pos_embed
+                    proj_feats[1], defe_feature_filtered,
+                    (H // self.mwas_window_size, W // self.mwas_window_size)
+                    if self.mwas_window_mode == "window_size" else self.mwas_window_size,
+                    glob_pos_embed
                 )
                 proj_feats[1] = enhanced_memory
                 out["defe"]["defe_window_mask"] = defe_window_mask

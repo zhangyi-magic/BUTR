@@ -3,7 +3,7 @@
 task: detection
 
 model: BUTR
-# Shared loss implementation; the registered name is retained from Dome-DETR.
+# Shared loss implementation; DeFE supervision is enabled only in Dome configs.
 criterion: DomeCriterion
 postprocessor: DomePostProcessor
 
@@ -69,6 +69,8 @@ DomeTransformer:
 
 
 DomeCriterion:
+  use_defe_loss: False
+
   weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5}
   losses: ['vfl', 'boxes', 'local']
   alpha: 0.75

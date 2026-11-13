@@ -129,7 +129,9 @@ class TensorRTRunner:
                 self.bound_addresses[name] = address
                 self.bindings[index] = address
         shape_values = self._shape_values(inputs)
-        if self.dynamic_outputs and shape_values != self.last_shape_values:
+        # COCO always emits 300 detections even when decoder K changes. Shape
+        # inputs still require updates when the final output shapes are fixed.
+        if (self.dynamic_outputs or self.shape_input_names) and shape_values != self.last_shape_values:
             missing = self.context.infer_shapes()
             if missing:
                 raise RuntimeError(f"TensorRT shape inputs are not specified: {missing}")

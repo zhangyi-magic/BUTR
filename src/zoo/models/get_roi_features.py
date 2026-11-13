@@ -184,7 +184,6 @@ class WindowProcessor(nn.Module):
         )
         self.window_encoder = AxisPermutedEncoder(encoder_layer, self.num_layers)
 
-    @torch.no_grad()
     def _prepare_windows(self, features, mask, n):
         """
         功能不变的窗口划分 + defe_mask 生成（max_pool2d + >0）。
@@ -196,30 +195,31 @@ class WindowProcessor(nn.Module):
         """
         B, C, H_feat, W_feat = features.shape
         H_mask, W_mask = mask.shape[-2:]
+        n_h, n_w = (n, n) if isinstance(n, int) else n
 
         # 你的原实现依赖：H_feat % n == 0 & W_feat % n == 0
-        assert H_feat % n == 0 and W_feat % n == 0
+        assert H_feat % n_h == 0 and W_feat % n_w == 0
 
-        win_h = H_feat // n
-        win_w = W_feat // n
+        win_h = H_feat // n_h
+        win_w = W_feat // n_w
 
         # 1) features -> windows (view + permute，不拷贝数据)
         # [B, C, H, W] -> [B, n, n, C, win_h, win_w]
-        windows = features.view(B, C, n, win_h, n, win_w).permute(0, 2, 4, 1, 3, 5).contiguous()
+        windows = features.view(B, C, n_h, win_h, n_w, win_w).permute(0, 2, 4, 1, 3, 5).contiguous()
 
         # 2) mask -> defe_mask via max_pool，保持原语义：窗口内只要有任意 >0 就 True
         # 注意：mask 分辨率可能不同于 feature 分辨率，按你原公式推 kernel
         # kernel_h = (H_mask / H_feat) * (H_feat/n) = H_mask / n
         # kernel_w = (W_mask / W_feat) * (W_feat/n) = W_mask / n
         # 但用整数运算要稳：保证可整除，否则退回到自适应池化
-        if (H_mask % n == 0) and (W_mask % n == 0):
-            kernel_h = H_mask // n
-            kernel_w = W_mask // n
+        if (H_mask % n_h == 0) and (W_mask % n_w == 0):
+            kernel_h = H_mask // n_h
+            kernel_w = W_mask // n_w
             pooled = F.max_pool2d(mask.float(), kernel_size=(kernel_h, kernel_w), stride=(kernel_h, kernel_w))
             # pooled: [B,1,n,n]
         else:
             # 兜底：仍然“窗口内 max>0”语义，用 adaptive_max_pool2d 对齐到 [n,n]
-            pooled = F.adaptive_max_pool2d(mask.float(), output_size=(n, n))
+            pooled = F.adaptive_max_pool2d(mask.float(), output_size=(n_h, n_w))
 
         defe_mask = pooled.squeeze(1) > 0  # [B,n,n] bool
         return windows, defe_mask, win_h, win_w
@@ -252,14 +252,10 @@ class WindowProcessor(nn.Module):
         return x.permute(0, 2, 1).contiguous().view(N, C, h, w)
 
     def forward(self, backbone_memory, defe_feature_filtered, n, glob_pos_embed):
-        """
-        高性能并行版（功能不变）：
-        - 只处理 defe_mask=True 的窗口
-        - 对这些窗口做 window_encoder
-        - 将输出以 += 的方式加回对应 patch
-        """
+        """Encode selected windows per image, then add them to the input features."""
         B, C, H, W = backbone_memory.shape
-        assert H % n == 0 and W % n == 0, "H and W must be divisible by n"
+        n_h, n_w = (n, n) if isinstance(n, int) else n
+        assert H % n_h == 0 and W % n_w == 0, "H and W must be divisible by the window grid"
 
         # 1) 划窗 + mask
         windows, defe_mask, win_h, win_w = self._prepare_windows(backbone_memory, defe_feature_filtered, n)
@@ -289,20 +285,30 @@ class WindowProcessor(nn.Module):
             glob_pos_embed_ = glob_pos_embed
         assert glob_pos_embed_.shape == (C, H, W), f"glob_pos_embed shape mismatch: {glob_pos_embed_.shape}"
 
-        pos_windows = glob_pos_embed_.view(C, n, win_h, n, win_w).permute(1, 3, 0, 2, 4).contiguous()
+        pos_windows = glob_pos_embed_.view(C, n_h, win_h, n_w, win_w).permute(1, 3, 0, 2, 4).contiguous()
         # [n,n,C,win_h,win_w]
         sel_pos = pos_windows[i_idx, j_idx]  # [N_total,C,win_h,win_w]
 
         # 5) window encoder（GPU 并行最核心）
         rel_pos_embed = self._get_rel_embedding((win_h, win_w)).to(backbone_memory.device)
-        encoded = self._encode_features(sel_windows, rel_pos_embed, sel_pos)  # [N_total,C,win_h,win_w]
+        # The second attention pass attends across windows. Keep each image's
+        # windows separate so unrelated images never participate in that pass.
+        encoded_per_image = []
+        for batch_index in range(B):
+            selected = b_idx == batch_index
+            if not selected.any():
+                raise AssertionError("No valid windows found for an image")
+            encoded_per_image.append(self._encode_features(
+                sel_windows[selected], rel_pos_embed, sel_pos[selected]
+            ))
+        encoded = torch.cat(encoded_per_image, dim=0)
 
         # 6) scatter-add 回原图（等价于逐窗 reconstructed += feats）
         # 用 view 把 reconstructed 改成 windows 视图，再 index_put_ accumulate=True 做 +=
-        reconstructed = backbone_memory  # 功能不变：在原特征上加增强
-        recon_view = reconstructed.view(B, C, n, win_h, n, win_w).permute(0, 2, 4, 1, 3, 5).contiguous()
+        reconstructed = backbone_memory.clone()
+        recon_view = reconstructed.view(B, C, n_h, win_h, n_w, win_w).permute(0, 2, 4, 1, 3, 5).contiguous()
         # recon_view: [B,n,n,C,win_h,win_w]
-        recon_view.index_put_((b_idx, i_idx, j_idx), encoded, accumulate=True)
+        recon_view.index_put_((b_idx, i_idx, j_idx), encoded.to(recon_view.dtype), accumulate=True)
 
         # 还原 [B,C,H,W]
         reconstructed = recon_view.permute(0, 3, 1, 4, 2, 5).contiguous().view(B, C, H, W)

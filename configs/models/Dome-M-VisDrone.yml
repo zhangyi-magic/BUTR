@@ -3,10 +3,10 @@ __include__: [
   '../runtime.yml',
   './include/dataloader.yml',
   './include/optimizer.yml',
-  './include/butr_hgnetv2.yml',
+  './include/dome_hgnetv2.yml',
 ]
 
-output_dir: ./output/butr_m_visdrone_max_sigmoid
+output_dir: ./output/dome_m_visdrone
 
 
 BUTR:
@@ -43,8 +43,9 @@ HybridEncoder:
   num_feature_levels: 4
   use_defe: True
   defe_type: 'light'
+  mwas_window_mode: window_size
   use_mwas: True # Only if use_defe
-  mwas_window_size: 5
+  mwas_window_size: 10
 
 DomeCriterion:
   defe_density_map_weight: 1

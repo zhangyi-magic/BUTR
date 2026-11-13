@@ -8,6 +8,13 @@ __include__: [
 
 output_dir: ./output/butr_m_aitodv2
 
+DomeCriterion:
+  scale_norm_bbox: False
+  sn_power: 0.25
+  sn_eps: 1.0e-6
+  sn_max_weight: 30.0
+  sn_apply_to_giou: False
+
 
 BUTR:
   backbone: HGNetv2

@@ -104,32 +104,12 @@ class LiteDeFE(nn.Module):
             nn.Sigmoid()
         )
 
-    #     self.regression_head = nn.Sequential(
-    #         nn.AdaptiveAvgPool2d(1),
-    #         nn.Flatten(),
-    #         nn.Linear(256, 1),
-    #         nn.Sigmoid()
-    #     )
-    #
-    # def forward(self, features):
-    #     x = self.conv1(features)
-    #
-    #     x = self.defe(x)
-    #
-    #     density = F.interpolate(
-    #         self.density_head(x),  # 用x生成密度图
-    #         scale_factor=2,
-    #         mode='bilinear',
-    #         align_corners=False
-    #     )
-    #
-    #     # 对density进行0-1归一化
-    #     if density.max() > 0:
-    #         density = density / density.max()
-    #
-    #     reg_value = self.regression_head(x)
-    #
-    #     return density, reg_value
+        self.regression_head = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
+            nn.Linear(256, 1),
+            nn.Sigmoid()
+        )
 
     def forward(self, features):
         x = self.conv1(features)
@@ -147,7 +127,9 @@ class LiteDeFE(nn.Module):
         if density.max() > 0:
             density = density / density.max()
 
-        return density, 1
+        reg_value = self.regression_head(x)
+
+        return density, reg_value
 
 
 class GaussHeatmapGenerator:

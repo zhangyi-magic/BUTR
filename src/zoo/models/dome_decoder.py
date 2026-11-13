@@ -11,6 +11,7 @@ import functools
 import math
 from collections import OrderedDict
 from typing import List
+import time
 
 import torch
 import torch.nn as nn
@@ -18,16 +19,18 @@ import torch.nn.functional as F
 import torch.nn.init as init
 
 from ...core import register
-from .denoising import get_contrastive_denoising_training_group
+from .dome_denoising import get_contrastive_denoising_training_group
 from .dome_utils import distance2bbox, weighting_function
-from src.zoo.models.dynamic_nms import dynamic_nms_fast
+from .dynamic_nms import dynamic_nms, dynamic_nms_fast
 from .utils import (
     bias_init_with_prob,
     deformable_attention_core_func_v2,
     get_activation,
     inverse_sigmoid,
 )
+import os
 
+SAVE_INTERMEDIATE_VISUALIZE_RESULT = os.environ.get('SAVE_INTERMEDIATE_VISUALIZE_RESULT', 'False') == 'True'
 
 __all__ = ["DomeTransformer"]
 
@@ -82,9 +85,9 @@ class MSDeformableAttention(nn.Module):
         self.method = method
 
         self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, (
-            "embed_dim must be divisible by num_heads"
-        )
+        assert (
+            self.head_dim * num_heads == self.embed_dim
+        ), "embed_dim must be divisible by num_heads"
 
         self.sampling_offsets = nn.Linear(embed_dim, self.total_points * 2)
         self.attention_weights = nn.Linear(embed_dim, self.total_points)
@@ -150,9 +153,7 @@ class MSDeformableAttention(nn.Module):
 
         if reference_points.shape[-1] == 2:
             # See: https://github.com/lyuwenyu/RT-DETR/issues/505
-            raise NotImplementedError(
-                "X-Y reference points of this version is not implemented, use cuda version instead."
-            )
+            raise NotImplementedError("X-Y reference points of this version is not implemented, use cuda version instead.")
         elif reference_points.shape[-1] == 4:
             # reference_points [8, 480, None, 1,  4]
             # sampling_offsets [8, 480, 8,    12, 2]
@@ -239,6 +240,7 @@ class TransformerDecoderLayer(nn.Module):
         target2, _ = self.self_attn(q, k, value=target, attn_mask=attn_mask)
         target = target + self.dropout1(target2)
         target = self.norm1(target)
+
 
         # cross attention
         target2 = self.cross_attn(
@@ -349,8 +351,6 @@ class TransformerDecoder(nn.Module):
         self.lqe_layers = nn.ModuleList(
             [copy.deepcopy(LQE(4, 64, 2, reg_max)) for _ in range(num_layers)]
         )
-        project = weighting_function(reg_max, up, reg_scale, deploy=False)
-        self.register_buffer("project", project)
 
     def value_op(self, memory, value_proj, value_scale, memory_mask, memory_spatial_shapes):
         """
@@ -365,11 +365,7 @@ class TransformerDecoder(nn.Module):
         return value.permute(0, 2, 3, 1).split(split_shape, dim=-1)
 
     def convert_to_deploy(self):
-        project = weighting_function(self.reg_max, self.up, self.reg_scale, deploy=True)
-        if isinstance(self.project, torch.nn.Parameter):
-            self.project.data.copy_(project)
-        else:
-            self.project = project
+        self.project = weighting_function(self.reg_max, self.up, self.reg_scale, deploy=True)
         self.layers = self.layers[: self.eval_idx + 1]
         self.lqe_layers = nn.ModuleList(
             [nn.Identity()] * (self.eval_idx) + [self.lqe_layers[self.eval_idx]]
@@ -391,7 +387,7 @@ class TransformerDecoder(nn.Module):
         attn_mask=None,
         memory_mask=None,
         dn_meta=None,
-        img_input=None,
+        img_input=None
     ):
         output = target
         output_detach = pred_corners_undetach = 0
@@ -401,8 +397,13 @@ class TransformerDecoder(nn.Module):
         dec_out_logits = []
         dec_out_pred_corners = []
         dec_out_refs = []
+        if not hasattr(self, "project"):
+            project = weighting_function(self.reg_max, up, reg_scale)
+        else:
+            project = self.project
 
         ref_points_detach = F.sigmoid(ref_points_unact)
+
 
         for i, layer in enumerate(self.layers):
             ref_points_input = ref_points_detach.unsqueeze(2)
@@ -430,7 +431,7 @@ class TransformerDecoder(nn.Module):
             # Refine bounding box corners using FDR, integrating previous layer's corrections
             pred_corners = bbox_head[i](output + output_detach) + pred_corners_undetach
             inter_ref_bbox = distance2bbox(
-                ref_points_initial, integral(pred_corners, self.project), reg_scale
+                ref_points_initial, integral(pred_corners, project), reg_scale
             )
 
             if self.training or i == self.eval_idx:
@@ -448,6 +449,7 @@ class TransformerDecoder(nn.Module):
             pred_corners_undetach = pred_corners
             ref_points_detach = inter_ref_bbox.detach()
             output_detach = output.detach()
+
 
         return (
             torch.stack(dec_out_bboxes),
@@ -467,10 +469,9 @@ class DomeTransformer(nn.Module):
         self,
         num_classes=80,
         hidden_dim=256,
-        num_queries=400,
         feat_channels=[512, 1024, 2048],
-        feat_strides=[8, 16, 32],
-        num_levels=3,
+        feat_strides=[8, 16, 32, 64, 128],
+        num_levels=5,
         num_points=4,
         nhead=8,
         num_layers=6,
@@ -480,7 +481,6 @@ class DomeTransformer(nn.Module):
         num_denoising=100,
         label_noise_ratio=0.5,
         box_noise_scale=1.0,
-        learn_query_content=False,
         eval_spatial_size=None,
         eval_idx=-1,
         eps=1e-2,
@@ -490,7 +490,6 @@ class DomeTransformer(nn.Module):
         reg_max=32,
         reg_scale=4.0,
         layer_scale=1,
-        mlp_act="relu",
         min_num_select=300,
         max_num_select=1500,
     ):
@@ -507,7 +506,6 @@ class DomeTransformer(nn.Module):
         self.feat_strides = feat_strides
         self.num_levels = num_levels
         self.num_classes = num_classes
-        self.num_queries = num_queries
         self.eps = eps
         self.num_layers = num_layers
         self.eval_spatial_size = eval_spatial_size
@@ -570,11 +568,7 @@ class DomeTransformer(nn.Module):
             )
             init.normal_(self.denoising_class_embed.weight[:-1])
 
-        # decoder embedding
-        self.learn_query_content = learn_query_content
-        if learn_query_content:
-            self.tgt_embed = nn.Embedding(num_queries, hidden_dim)
-        self.query_pos_head = MLP(4, 2 * hidden_dim, hidden_dim, 2, act=mlp_act)
+        self.query_pos_head = MLP(4, 2 * hidden_dim, hidden_dim, 2)
 
         self.enc_output = nn.Sequential(
             OrderedDict(
@@ -595,7 +589,7 @@ class DomeTransformer(nn.Module):
         else:
             self.enc_score_head = nn.Linear(hidden_dim, num_classes)
 
-        self.enc_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3, act=mlp_act)
+        self.enc_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3)
 
         # decoder head
         self.eval_idx = eval_idx if eval_idx >= 0 else num_layers + eval_idx
@@ -603,31 +597,20 @@ class DomeTransformer(nn.Module):
             [nn.Linear(hidden_dim, num_classes) for _ in range(self.eval_idx + 1)]
             + [nn.Linear(scaled_dim, num_classes) for _ in range(num_layers - self.eval_idx - 1)]
         )
-        self.pre_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3, act=mlp_act)
+        self.pre_bbox_head = MLP(hidden_dim, hidden_dim, 4, 3)
         self.dec_bbox_head = nn.ModuleList(
             [
-                MLP(hidden_dim, hidden_dim, 4 * (self.reg_max + 1), 3, act=mlp_act)
+                MLP(hidden_dim, hidden_dim, 4 * (self.reg_max + 1), 3)
                 for _ in range(self.eval_idx + 1)
             ]
             + [
-                MLP(scaled_dim, scaled_dim, 4 * (self.reg_max + 1), 3, act=mlp_act)
+                MLP(scaled_dim, scaled_dim, 4 * (self.reg_max + 1), 3)
                 for _ in range(num_layers - self.eval_idx - 1)
             ]
         )
         self.integral = Integral(self.reg_max)
 
-        # init encoder output anchors and valid_mask
-        if self.eval_spatial_size:
-            anchors, valid_mask = self._generate_anchors()
-            self.register_buffer("anchors", anchors)
-            self.register_buffer("valid_mask", valid_mask)
-        # init encoder output anchors and valid_mask
-        if self.eval_spatial_size:
-            self.anchors, self.valid_mask = self._generate_anchors()
-
         self._reset_parameters(feat_channels)
-
-        self.stat_step = 0
 
     def convert_to_deploy(self):
         self.dec_score_head = nn.ModuleList(
@@ -656,8 +639,6 @@ class DomeTransformer(nn.Module):
                 init.constant_(reg_.layers[-1].bias, 0)
 
         init.xavier_uniform_(self.enc_output[0].weight)
-        if self.learn_query_content:
-            init.xavier_uniform_(self.tgt_embed.weight)
         init.xavier_uniform_(self.query_pos_head.layers[0].weight)
         init.xavier_uniform_(self.query_pos_head.layers[1].weight)
         for m, in_channels in zip(self.input_proj, feat_channels):
@@ -732,7 +713,8 @@ class DomeTransformer(nn.Module):
 
         # [b, l, c]
         feat_flatten = torch.concat(feat_flatten, 1)
-        return feat_flatten, spatial_shapes
+        return proj_feats, feat_flatten, spatial_shapes
+
 
     def _generate_anchors(
         self, spatial_shapes=None, grid_size=0.0125, dtype=torch.float32, device="cpu"
@@ -759,147 +741,151 @@ class DomeTransformer(nn.Module):
 
         return anchors, valid_mask
 
-    def _get_decoder_input_PAQI(
-        self,
-        memory: torch.Tensor,
-        targets,
-        spatial_shapes,
-        defe_window_mask=None,
-        defe_feature=None,
+
+    def _get_decoder_input(
+        self, memory: torch.Tensor, spatial_shapes, defe_window_mask=None, defe_feature=None, num_classes=80, H=800, W=800
     ):
-        # 1) anchors / valid
-        anchors, valid_mask = self._generate_anchors(spatial_shapes, device=memory.device.type)
+        # prepare input for decoder
+        anchors, valid_mask = self._generate_anchors(spatial_shapes, device=memory.device)
 
-        B = memory.shape[0]
-        if B > 1:
-            anchors = anchors.repeat(B, 1, 1)
-
-        # mask invalid memory
+        if memory.shape[0] > 1:
+            anchors = anchors.repeat(memory.shape[0], 1, 1)
         memory = valid_mask.to(memory.dtype) * memory
 
-        # 2) encoder heads
-        output_memory: torch.Tensor = self.enc_output(memory)  # [B, L, C]
-        enc_outputs_logits: torch.Tensor = self.enc_score_head(output_memory)  # [B, L, K]
+        output_memory: torch.Tensor = self.enc_output(memory)
+        enc_outputs_logits: torch.Tensor = self.enc_score_head(output_memory)
 
-        # 3) select top max_num_select (ranked by cls confidence)
+        enc_topk_bboxes_list, enc_topk_logits_list = [], []
+
+        # Select top-k features, logits, and anchors
         enc_topk_memory, enc_topk_logits, enc_topk_anchors = self._select_topk(
             output_memory, enc_outputs_logits, anchors, self.max_num_select
-        )  # [B, max_num, C], [B, max_num, K], [B, max_num, 4]
+        )
 
-        min_num = self.min_num_select
-        max_num = self.max_num_select
+        B = enc_topk_anchors.size(0)
+        min_num, max_num = self.min_num_select, self.max_num_select
 
-        # split
+        # Split into first min_num and remaining anchors
         memory_first = enc_topk_memory[:, :min_num, :]
-        logits_first = enc_topk_logits[:, :min_num, :]
+        logits_first = enc_topk_logits[:, :min_num]
         anchors_first = enc_topk_anchors[:, :min_num, :]
 
         memory_second = enc_topk_memory[:, min_num:max_num, :]
-        logits_second = enc_topk_logits[:, min_num:max_num, :]
+        logits_second = enc_topk_logits[:, min_num:max_num]
         anchors_second = enc_topk_anchors[:, min_num:max_num, :]
 
-        # 4) window mask gating on "second" part
+        # Calculate window indices for remaining anchors
         if defe_window_mask is not None:
-            # defe_window_mask: [B, mask_h, mask_w]
-            mask_h, mask_w = defe_window_mask.shape[1], defe_window_mask.shape[2]
-
-            # anchors are in logit space; sigmoid to get normalized center
-            cx2 = anchors_second[..., 0].sigmoid()
-            cy2 = anchors_second[..., 1].sigmoid()
-
-            col = (cx2 * mask_w).long().clamp(0, mask_w - 1)
-            row = (cy2 * mask_h).long().clamp(0, mask_h - 1)
+            n_x, n_y = defe_window_mask.shape[1], defe_window_mask.shape[2]
+            cx, cy = F.sigmoid(anchors_second[..., 0]), F.sigmoid(anchors_second[..., 1])
+            window_col = (cx * n_x).long().clamp(0, n_x - 1)
+            window_row = (cy * n_y).long().clamp(0, n_y - 1)
 
             selected_mask = defe_window_mask[
                 torch.arange(B, device=enc_topk_anchors.device).view(-1, 1),
-                row,
-                col,
-            ]  # [B, N2] bool
+                window_row,
+                window_col,
+            ]
         else:
-            selected_mask = torch.ones(
-                (B, anchors_second.shape[1]), device=memory.device, dtype=torch.bool
-            )
+            selected_mask = torch.ones_like(anchors_second[..., 0], dtype=torch.bool)
 
-        # 5) per-sample combine + (optional) dynamic NMS
-        content_list = []
-        bbox_unact_list = []
-        bboxes_list = []
-        logits_list = []
-        batch_queries_num = []
+        # Process each batch and combine valid anchors
+        combined_memory, combined_logits, combined_anchors, combined_bbox_unact = [], [], [], []
+        total_per_batch = []
 
-        # density feature size
-        if defe_feature is not None:
-            # defe_feature: [B, 1, Hf, Wf]
-            Hf, Wf = defe_feature.shape[2], defe_feature.shape[3]
-
+        # Do class-based NMS anchor selection
         for b in range(B):
             mask_b = selected_mask[b]
+            mem_second = memory_second[b][mask_b]
+            log_second = logits_second[b][mask_b]
+            anc_second = anchors_second[b][mask_b]
 
-            mem_second_b = memory_second[b][mask_b]
-            log_second_b = logits_second[b][mask_b]
-            anc_second_b = anchors_second[b][mask_b]
+            mem_combined = torch.cat([memory_first[b], mem_second], dim=0)
+            log_combined = torch.cat([logits_first[b], log_second], dim=0)
+            anc_combined = torch.cat([anchors_first[b], anc_second], dim=0)
 
-            mem_combined = torch.cat([memory_first[b], mem_second_b], dim=0)
-            log_combined = torch.cat([logits_first[b], log_second_b], dim=0)
-            anc_combined = torch.cat([anchors_first[b], anc_second_b], dim=0)
+            bbox_combined_unact = self.enc_bbox_head(mem_combined) + anc_combined
+            bbox_combined = F.sigmoid(bbox_combined_unact)
 
-            # encoder bbox head on combined
-            bbox_unact = self.enc_bbox_head(mem_combined) + anc_combined
-            bbox = bbox_unact.sigmoid()
-
-            if log_combined.numel() > 0:
-                # cxcywh -> xyxy for NMS
-                cx = bbox[:, 0]
-                cy = bbox[:, 1]
-                w = bbox[:, 2]
-                h = bbox[:, 3]
-                x1 = cx - 0.5 * w
-                y1 = cy - 0.5 * h
-                x2 = cx + 0.5 * w
-                y2 = cy + 0.5 * h
+            # 执行基于类别的NMS
+            if log_combined.size(0) > 0:
+                # 转换anchor到边界框格式[x1, y1, x2, y2]
+                cx = bbox_combined[:, 0]
+                cy = bbox_combined[:, 1]
+                w = bbox_combined[:, 2]
+                h = bbox_combined[:, 3]
+                x1 = cx - w / 2
+                y1 = cy - h / 2
+                x2 = cx + w / 2
+                y2 = cy + h / 2
                 boxes = torch.stack([x1, y1, x2, y2], dim=1)
 
-                # dynamic IoU thresholds from density map
-                if defe_feature is not None:
-                    row_f = (cy * (Hf - 1)).long().clamp(0, Hf - 1)
-                    col_f = (cx * (Wf - 1)).long().clamp(0, Wf - 1)
-                    density_values = defe_feature[b, 0, row_f, col_f].detach()  # [N]
-                    iou_thresholds = 0.4 + 0.5 * density_values
-                else:
-                    iou_thresholds = None
 
+                # 在合并候选框后计算中心坐标
+                cf_h, cf_w = defe_feature.shape[2:]
+                window_row = (cx * (cf_w - 1)).long().clamp(0, cf_w - 1)
+                window_col = (cy * (cf_h - 1)).long().clamp(0, cf_h - 1)
+                density_values = defe_feature[b, :, window_row, window_col].squeeze(0).detach()  # 形状 (num_queries,)
+
+                iou_thresholds = 0.4 + 0.5 * density_values
+
+                # 获取每个anchor的类别分数和类别ID
                 scores, class_ids = log_combined.max(dim=1)
 
-                keep_idx = dynamic_nms_fast(boxes, scores, class_ids, iou_thresholds)
+                # 应用NMS
+                keep_idx = dynamic_nms_fast(
+                    boxes, scores, class_ids, iou_thresholds
+                )
 
-                # keep all first min_num, apply NMS only for >= min_num part
-                keep_first = torch.arange(min_num, device=keep_idx.device)
-                keep_rest = keep_idx[keep_idx >= min_num]
-                final_keep = torch.cat([keep_first, keep_rest], dim=0)
+                # 前min_num个anchor不进行NMS
+                final_keep_idx = torch.arange(min_num).to(keep_idx.device)
+                final_keep_idx = torch.cat([final_keep_idx, keep_idx[keep_idx >= min_num]])
 
-                mem_combined = mem_combined[final_keep]
-                log_combined = log_combined[final_keep]
-                bbox_unact = bbox_unact[final_keep]
-                bbox = bbox[final_keep]
+                mem_combined = mem_combined[final_keep_idx]
+                log_combined = log_combined[final_keep_idx]
+                anc_combined = anc_combined[final_keep_idx]
+                bbox_combined_unact = bbox_combined_unact[final_keep_idx]
 
-            content_list.append(mem_combined)
-            bbox_unact_list.append(bbox_unact)
-            bboxes_list.append(bbox)
-            logits_list.append(log_combined)
+            combined_memory.append(mem_combined)
+            combined_logits.append(log_combined)
+            combined_anchors.append(anc_combined)
+            combined_bbox_unact.append(bbox_combined_unact)
+            total_per_batch.append(mem_combined.size(0))
 
-            n_q = int(mem_combined.shape[0])
-            batch_queries_num.append(n_q)
+        # Pad to max number of anchors across batches
+        max_total = max(total_per_batch)
+        padded_memory = torch.zeros((B, max_total, memory_first.size(-1)),
+                                device=enc_topk_memory.device)
+        padded_logits = torch.zeros((B, max_total, num_classes), device=enc_topk_logits.device)
+        # padded_anchors = torch.zeros((B, max_total, 4), device=enc_topk_anchors.device) # Not strictly needed if unact is used
+        padded_bbox_unact = torch.zeros((B, max_total, 4), device=enc_topk_anchors.device)
+        batch_queries_num = []
 
-        content_list_detached = [x.detach() for x in content_list]
-        bbox_unact_list_detached = [x.detach() for x in bbox_unact_list]
+        for b in range(B):
+            current_len = total_per_batch[b]
+            padded_memory[b, :current_len] = combined_memory[b]
+            padded_logits[b, :current_len] = combined_logits[b]
+            # padded_anchors[b, :current_len] = combined_anchors[b]
+            padded_bbox_unact[b, :current_len] = combined_bbox_unact[b]
+            batch_queries_num.append(current_len)
 
-        return (
-            content_list_detached,
-            bbox_unact_list_detached,
-            bboxes_list,
-            logits_list,
-            batch_queries_num,
-        )
+        # 我们直接使用已经 Pad 好的 padded_bbox_unact 和 padded_logits 即可。
+        enc_topk_bbox_unact = padded_bbox_unact
+
+        # Prepare training outputs
+        # 直接对整个 Padded 张量做 Sigmoid，保持 [B, Max_Num, 4] 形状
+        enc_topk_bboxes = F.sigmoid(enc_topk_bbox_unact)
+
+        # 将结果包装为列表（保持与原始返回格式一致，通常用于 Aux Loss 计算）
+        # 注意：这里不需要循环切片，下游 Loss 计算会根据 batch_queries_num 知道哪些是有效的
+        enc_topk_bboxes_list = [enc_topk_bboxes]
+        enc_topk_logits_list = [padded_logits]
+
+        content = padded_memory.detach()
+        enc_topk_bbox_unact = enc_topk_bbox_unact.detach()
+
+        return content, enc_topk_bbox_unact, enc_topk_bboxes_list, enc_topk_logits_list, batch_queries_num
+
 
     def _select_topk(
         self,
@@ -936,198 +922,123 @@ class DomeTransformer(nn.Module):
 
     def forward(self, encoder_out, targets=None, epoch=None):
         feats = encoder_out["feats"]
-        B = feats[0].shape[0]
-        output_list = []
 
         encoder_out["defe"]["min_num_select"] = self.min_num_select
         encoder_out["defe"]["max_num_select"] = self.max_num_select
 
         # input projection and embedding
-        memory, spatial_shapes = self._get_encoder_input(feats)
+        proj_feats, memory, spatial_shapes = self._get_encoder_input(feats)
 
         if "defe" in encoder_out:
             defe_window_mask = encoder_out["defe"]["defe_window_mask"]
-            defe_feature_pooled = encoder_out["defe"]["density_map_pooled"]
+            defe_feature = encoder_out["defe"]["density_map_pooled"]
         else:
             defe_window_mask = None
-            defe_feature_pooled = None
+            defe_feature = None
 
-        (
-            init_ref_contents,
-            init_ref_points_unact,
-            enc_topk_bboxes_list,
-            enc_topk_logits_list,
-            batch_queries_num,
-        ) = self._get_decoder_input_PAQI(
-            memory,
-            targets,
-            spatial_shapes,
-            defe_window_mask=defe_window_mask,
-            defe_feature=defe_feature_pooled,
+        init_ref_contents, init_ref_points_unact, enc_topk_bboxes_list, enc_topk_logits_list, batch_queries_num = (
+            self._get_decoder_input(memory, spatial_shapes, defe_window_mask=defe_window_mask, defe_feature=defe_feature, num_classes=self.num_classes)
         )
 
-        for b in range(B):
-            current_init_ref_contents = init_ref_contents[b].unsqueeze(0)
-            current_init_ref_points_unact = init_ref_points_unact[b].unsqueeze(0)
-            current_memory = memory[b].unsqueeze(0)
-            current_targets = None if targets is None else [targets[b]]
+        num_queries = max(batch_queries_num)
 
-            current_num_queries = (
-                batch_queries_num[b]
-                if isinstance(batch_queries_num, (list, tuple))
-                else batch_queries_num
+        # prepare for denoising training
+        if self.training and self.num_denoising > 0:
+            denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = (
+                get_contrastive_denoising_training_group(
+                    targets,
+                    self.num_classes,
+                    num_queries,
+                    self.denoising_class_embed,
+                    num_denoising=self.num_denoising,
+                    label_noise_ratio=self.label_noise_ratio,
+                    box_noise_scale=1.0,
+                    batch_queries_num=batch_queries_num,
+                    num_heads=self.nhead
+                )
             )
+        else:
+            denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
 
-            if self.training and self.num_denoising > 0:
-                denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = (
-                    get_contrastive_denoising_training_group(
-                        current_targets,
-                        self.num_classes,
-                        current_num_queries,
-                        self.denoising_class_embed,
-                        num_denoising=self.num_denoising,
-                        label_noise_ratio=self.label_noise_ratio,
-                        box_noise_scale=1.0,
-                        num_heads=self.nhead,
-                    )
-                )
-            else:
-                denoising_logits, denoising_bbox_unact, attn_mask, dn_meta = None, None, None, None
+        if denoising_bbox_unact is not None:
+            init_ref_points_unact = torch.concat([denoising_bbox_unact, init_ref_points_unact], dim=1)
+            init_ref_contents = torch.concat([denoising_logits, init_ref_contents], dim=1)
 
-            if denoising_bbox_unact is not None and current_init_ref_points_unact is not None:
-                current_init_ref_points_unact = torch.cat(
-                    [denoising_bbox_unact, current_init_ref_points_unact], dim=1
-                )
-                current_init_ref_contents = torch.cat(
-                    [denoising_logits, current_init_ref_contents], dim=1
-                )
+        # decoder
+        out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits = self.decoder(
+            init_ref_contents,
+            init_ref_points_unact,
+            memory,
+            spatial_shapes,
+            self.dec_bbox_head,
+            self.dec_score_head,
+            self.query_pos_head,
+            self.pre_bbox_head,
+            self.integral,
+            self.up,
+            self.reg_scale,
+            attn_mask=attn_mask,
+            dn_meta=dn_meta,
+        )
 
-            out_bboxes, out_logits, out_corners, out_refs, pre_bboxes, pre_logits = self.decoder(
-                current_init_ref_contents,
-                current_init_ref_points_unact,
-                current_memory,
-                spatial_shapes,
-                self.dec_bbox_head,
-                self.dec_score_head,
-                self.query_pos_head,
-                self.pre_bbox_head,
-                self.integral,
-                self.up,
-                self.reg_scale,
-                attn_mask=attn_mask,
-                dn_meta=dn_meta,
+        if self.training and dn_meta is not None:
+            dn_pre_logits, pre_logits = torch.split(pre_logits, dn_meta["dn_num_split"], dim=1)
+            dn_pre_bboxes, pre_bboxes = torch.split(pre_bboxes, dn_meta["dn_num_split"], dim=1)
+            dn_out_bboxes, out_bboxes = torch.split(out_bboxes, dn_meta["dn_num_split"], dim=2)
+            dn_out_logits, out_logits = torch.split(out_logits, dn_meta["dn_num_split"], dim=2)
+
+            dn_out_corners, out_corners = torch.split(out_corners, dn_meta["dn_num_split"], dim=2)
+            dn_out_refs, out_refs = torch.split(out_refs, dn_meta["dn_num_split"], dim=2)
+
+        if self.training:
+            out = {
+                "pred_logits": out_logits[-1],
+                "pred_boxes": out_bboxes[-1],
+                "pred_corners": out_corners[-1],
+                "ref_points": out_refs[-1],
+                "up": self.up,
+                "reg_scale": self.reg_scale,
+            }
+        else:
+            out = {"pred_logits": out_logits[-1], "pred_boxes": out_bboxes[-1]}
+
+        if self.training and self.aux_loss:
+            out["aux_outputs"] = self._set_aux_loss2(
+                out_logits[:-1],
+                out_bboxes[:-1],
+                out_corners[:-1],
+                out_refs[:-1],
+                out_corners[-1],
+                out_logits[-1],
             )
+            out["enc_aux_outputs"] = self._set_aux_loss(enc_topk_logits_list, enc_topk_bboxes_list)
+            out["pre_outputs"] = {"pred_logits": pre_logits, "pred_boxes": pre_bboxes}
+            out["enc_meta"] = {"class_agnostic": self.query_select_method == "agnostic"}
 
-            if self.training and dn_meta is not None:
-                dn_pre_logits, normal_pre_logits = torch.split(
-                    pre_logits, dn_meta["dn_num_split"], dim=1
+            if dn_meta is not None:
+                out["dn_outputs"] = self._set_aux_loss2(
+                    dn_out_logits,
+                    dn_out_bboxes,
+                    dn_out_corners,
+                    dn_out_refs,
+                    dn_out_corners[-1],
+                    dn_out_logits[-1],
                 )
-                dn_pre_bboxes, normal_pre_bboxes = torch.split(
-                    pre_bboxes, dn_meta["dn_num_split"], dim=1
-                )
-                dn_out_bboxes, normal_out_bboxes = torch.split(
-                    out_bboxes, dn_meta["dn_num_split"], dim=2
-                )
-                dn_out_logits, normal_out_logits = torch.split(
-                    out_logits, dn_meta["dn_num_split"], dim=2
-                )
-                dn_out_corners, normal_out_corners = torch.split(
-                    out_corners, dn_meta["dn_num_split"], dim=2
-                )
-                dn_out_refs, normal_out_refs = torch.split(out_refs, dn_meta["dn_num_split"], dim=2)
-            else:
-                normal_pre_logits, normal_pre_bboxes = pre_logits, pre_bboxes
-                normal_out_bboxes, normal_out_logits = out_bboxes, out_logits
-                normal_out_corners, normal_out_refs = out_corners, out_refs
-                dn_pre_logits = dn_pre_bboxes = None
-                dn_out_bboxes = dn_out_logits = dn_out_corners = dn_out_refs = None
+                out["dn_pre_outputs"] = {"pred_logits": dn_pre_logits, "pred_boxes": dn_pre_bboxes}
+                out["dn_meta"] = dn_meta
 
-            if self.training:
-                sample_output = {
-                    "pred_logits": normal_out_logits[-1],  # [1, N_normal, C]
-                    "pred_boxes": normal_out_bboxes[-1],  # [1, N_normal, 4]
-                    "pred_corners": normal_out_corners[-1],
-                    "ref_points": normal_out_refs[-1],
-                    "up": self.up,
-                    "reg_scale": self.reg_scale,
-                }
-            else:
-                sample_output = {
-                    "pred_logits": normal_out_logits[-1],
-                    "pred_boxes": normal_out_bboxes[-1],
-                }
+        for key in encoder_out:
+            if key != "feats":
+                out[key] = encoder_out[key]
 
-            if self.training and self.aux_loss:
-                sample_output["aux_outputs"] = self._set_aux_loss2(
-                    normal_out_logits[:-1],
-                    normal_out_bboxes[:-1],
-                    normal_out_corners[:-1],
-                    normal_out_refs[:-1],
-                    normal_out_corners[-1],
-                    normal_out_logits[-1],
-                )
-
-                enc_logits_b = enc_topk_logits_list[b].unsqueeze(0)  # [1, N_b, C]
-                enc_boxes_b = enc_topk_bboxes_list[b].unsqueeze(0)  # [1, N_b, 4]
-                sample_output["enc_aux_outputs"] = self._set_aux_loss(
-                    [enc_logits_b],
-                    [enc_boxes_b],
-                )
-
-                sample_output["pre_outputs"] = {
-                    "pred_logits": normal_pre_logits,  # [1, N_normal, C]
-                    "pred_boxes": normal_pre_bboxes,  # [1, N_normal, 4]
-                }
-
-                sample_output["enc_meta"] = {
-                    "class_agnostic": self.query_select_method == "agnostic"
-                }
-
-                if dn_meta is not None:
-                    sample_output["dn_outputs"] = self._set_aux_loss2(
-                        dn_out_logits,
-                        dn_out_bboxes,
-                        dn_out_corners,
-                        dn_out_refs,
-                        dn_out_corners[-1],
-                        dn_out_logits[-1],
-                    )
-
-                    sample_output["dn_pre_outputs"] = {
-                        "pred_logits": dn_pre_logits,
-                        "pred_boxes": dn_pre_bboxes,
-                    }
-                    sample_output["dn_meta"] = dn_meta
-
-            if "defe" in encoder_out:
-                e_defe = encoder_out["defe"]
-                sample_defe = {
-                    "min_num_select": e_defe["min_num_select"],
-                    "max_num_select": e_defe["max_num_select"],
-                    "density_map": e_defe["density_map"][b : b + 1],  # 800脳800
-                    "defe_feature": e_defe["defe_feature"][b : b + 1],  # 800脳800
-                    "defe_window_mask": e_defe["defe_window_mask"][b],
-                    "gt_density_map": e_defe["gt_density_map"][b : b + 1],
-                }
-                sample_output["defe"] = sample_defe
-            else:
-                sample_output["defe"] = {}
-
-            for key in encoder_out:
-                if key not in ["feats", "defe"]:
-                    value = encoder_out[key]
-                    if isinstance(value, torch.Tensor) and value.dim() > 0 and value.size(0) == B:
-                        sample_output[key] = value[b : b + 1]
-                    else:
-                        sample_output[key] = value
-
-            sample_output["batch_queries_num"] = batch_queries_num[b]
-            output_list.append(sample_output)
-
-        return output_list
+        out["batch_queries_num"] = batch_queries_num
+        return out
 
     @torch.jit.unused
     def _set_aux_loss(self, outputs_class, outputs_coord):
+        # this is a workaround to make torchscript happy, as torchscript
+        # doesn't support dictionary with non-homogeneous values, such
+        # as a dict having both a Tensor and a list.
         return [{"pred_logits": a, "pred_boxes": b} for a, b in zip(outputs_class, outputs_coord)]
 
     @torch.jit.unused
@@ -1140,6 +1051,9 @@ class DomeTransformer(nn.Module):
         teacher_corners=None,
         teacher_logits=None,
     ):
+        # this is a workaround to make torchscript happy, as torchscript
+        # doesn't support dictionary with non-homogeneous values, such
+        # as a dict having both a Tensor and a list.
         return [
             {
                 "pred_logits": a,

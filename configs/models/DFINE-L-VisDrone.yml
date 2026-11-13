@@ -17,8 +17,8 @@ HGNetv2:
   name: 'B4'
   return_idx: [0, 1, 2, 3]
   freeze_stem_only: True
-  freeze_at: -1
-  freeze_norm: False
+  freeze_at: 0
+  freeze_norm: True
 
 DFINETransformer:
   num_layers: 6  # 5 6

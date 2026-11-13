@@ -20,10 +20,12 @@ data/
     ├── VisDrone2019-DET-trainval/images/
     ├── VisDrone2019-DET-test/images/
     ├── VisDrone2019-DET_trainval_coco.json
-    └── VisDrone2019-DET_test_coco_moderate.json
+    └── VisDrone2019-DET_test_coco.json
 ```
 
 ## Annotation protocol
+
+VisDrone AP is evaluated on the full annotated `test` split. Use `VisDrone2019-DET_test_coco.json` for evaluation; density subsets are used only for the separate density-stratified analysis.
 
 Use the same converted annotations as the experiments. Changing ignored regions, categories, or evaluation settings changes the protocol. The [VisDrone conversion utility](../tools/dataset/visdrone2coco.py) accepts `--root` and `--output-dir` and produces separate split annotations; the trainval merge and the paper's test annotations must be prepared separately.
 

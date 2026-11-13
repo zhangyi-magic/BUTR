@@ -113,9 +113,13 @@ class ConfigTests(unittest.TestCase):
                 self.assertEqual(decoder == "BUTRTransformer", path.name.startswith("BUTR-"))
 
     def test_cli_preserves_amp_yaml_default(self):
-        args = build_parser().parse_args(["-c", "configs/models/BUTR-L-AITOD.yml"])
-        self.assertIsNone(args.use_amp)
-        self.assertTrue(YAMLConfig(args.config).yaml_cfg["use_amp"])
+        for path, expected in (
+            ("configs/models/BUTR-L-AITOD.yml", False),
+            ("configs/models/BUTR-L-VisDrone.yml", False),
+        ):
+            args = build_parser().parse_args(["-c", path])
+            self.assertIsNone(args.use_amp)
+            self.assertIs(YAMLConfig(args.config).yaml_cfg["use_amp"], expected)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             build_parser().parse_args(["-c", args.config, "-r", "a.pth", "-t", "b.pth"])
 

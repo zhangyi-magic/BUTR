@@ -54,11 +54,11 @@ class DetSolver(BaseSolver):
         self.stage2_reload = "stage1"
 
         n_parameters = sum(p.numel() for p in self.model.parameters())
-        print(f"Number of parameters: {n_parameters:,}")
+        print(f"Training parameters: {n_parameters:,}")
         if args.yaml_cfg.get("profile_model", True) and dist_utils.is_main_process():
             from ..misc.profiler_utils import stats
 
-            print("Calculating model FLOPs with calflops...", flush=True)
+            print("Profiling a deployment copy with a synthetic input (calflops)...", flush=True)
             _, model_stats = stats(self.cfg)
             print(model_stats)
         print("-" * 42 + "Start training" + "-" * 43)

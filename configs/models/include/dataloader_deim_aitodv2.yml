@@ -16,7 +16,7 @@ train_dataloader:
         - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
       policy:
         name: stop_epoch
-        epoch: [13, 93, 150]
+        epoch: [13, 93, 148]
         ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop', 'Mosaic']
       mosaic_prob: 0.5
 

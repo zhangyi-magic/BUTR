@@ -3,7 +3,7 @@ __include__: [
   '../../runtime.yml',
   '../include/dataloader.yml',
   '../include/optimizer.yml',
-  '../include/butr_hgnetv2.yml',
+  '../include/dome_hgnetv2.yml',
 ]
 
 

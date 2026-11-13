@@ -7,7 +7,9 @@ __include__: [
 ]
 
 
-output_dir: ./output/butr_l_aitodv2
+output_dir: ./output/butr_l_aitodv2_lr4
+
+use_amp: False
 
 
 BUTR:
@@ -20,6 +22,8 @@ HGNetv2:
   freeze_stem_only: True
   freeze_at: -1
   freeze_norm: False
+#  freeze_at: 0
+#  freeze_norm: True
 
 HybridEncoder:
   in_channels: [128, 512, 1024, 2048]
@@ -43,7 +47,7 @@ BUTRTransformer:
   num_points: [4, 4, 4, 4]
   min_num_select: 300
   max_num_select: 1500
-  budget_train_safety: 1.0
+  budget_train_safety: 2.0
   budget_eval_safety: 2.0
   budget_score_method: max_sigmoid
   budget_map: linear

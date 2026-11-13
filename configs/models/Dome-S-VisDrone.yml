@@ -3,10 +3,10 @@ __include__: [
   '../runtime.yml',
   './include/dataloader.yml',
   './include/optimizer.yml',
-  './include/butr_hgnetv2.yml',
+  './include/dome_hgnetv2.yml',
 ]
 
-output_dir: ./output/butr_s_visdrone_max_sigmoid
+output_dir: ./output/dome_s_visdrone
 
 
 BUTR:
@@ -43,6 +43,7 @@ HybridEncoder:
   num_feature_levels: 4
   use_defe: True
   defe_type: 'light'
+  mwas_window_mode: window_size
   use_mwas: True # Only if use_defe
   mwas_window_size: 10
 
@@ -70,12 +71,12 @@ optimizer:
 
 lr_scheduler:
   type: MultiStepLR
-  milestones: [60, 100]
+  milestones: [80, 120]
   gamma: 0.8
 
 
 # Increase to search for the optimal ema
-epoches: 120
+epoches: 160
 train_dataloader:
   dataset:
     transforms:

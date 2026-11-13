@@ -16,13 +16,12 @@ train_dataloader:
         name: stop_epoch
         epoch: 72
         ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
-      mosaic_prob: 0
 
   collate_fn:
     type: BatchImageCollateFunction
+    mixup_prob: 0.0
     base_size: 800
     base_size_repeat: 2
-    mixup_prob: 0
 
   shuffle: True
   total_batch_size: 16

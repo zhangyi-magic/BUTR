@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 \
   --output-dir output/butr_l_visdrone_seed0
 ```
 
-`--resume` restores training state; `--tuning` initializes from a checkpoint and supports adapting the detection head. They are mutually exclusive. AMP follows the YAML setting unless enabled with `--use-amp` or overridden with `-u use_amp=False`. Configuration values can be changed with dotted YAML overrides; see [data preparation](data.md) for path examples.
+`--resume` restores training state; `--tuning` initializes from a checkpoint and supports adapting the detection head. They are mutually exclusive. AMP is disabled by default; enable it explicitly with `--use-amp`. Configuration values can be changed with dotted YAML overrides; see [data preparation](data.md) for path examples.
 
 Training outputs include `log.txt`, TensorBoard summaries when configured, `last.pth`, periodic checkpoints, and `best_stg1.pth` / `best_stg2.pth`. The second-stage EMA refresh and checkpoint reload schedule is retained. Add `-u profile_model=True` to enable model FLOPs profiling.
 

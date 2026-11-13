@@ -72,9 +72,15 @@ class BudgetAdapter:
                 # Upstream marks invalid proposal anchors with infinity.
                 valid_mask = torch.isfinite(outputs_anchors_unact).all(-1, keepdim=True)
                 budgets = compute_budget(outputs_logits, valid_mask, **self.settings)
-                topk = min(int(budgets.max().item()), outputs_logits.shape[1])
-                self.requested_counts.extend(budgets.cpu().tolist())
-            self.decoded_counts.extend([int(topk)] * outputs_logits.shape[0])
+                if torch.onnx.is_in_onnx_export():
+                    # Preserve the confidence-derived K instead of tracing one
+                    # image's Python integer into every exported invocation.
+                    topk = budgets.max().clamp(max=outputs_logits.shape[1])
+                else:
+                    topk = min(int(budgets.max().item()), outputs_logits.shape[1])
+                    self.requested_counts.extend(budgets.cpu().tolist())
+            if not torch.onnx.is_in_onnx_export():
+                self.decoded_counts.extend([int(topk)] * outputs_logits.shape[0])
             return original(memory, outputs_logits, outputs_anchors_unact, topk)
 
         decoder._select_topk = MethodType(select, decoder)

@@ -34,11 +34,6 @@ class HungarianMatcher(nn.Module):
         use_focal_loss=False,
         alpha=0.25,
         gamma=2.0,
-        scale_norm_bbox=False,  # new
-        sn_power=0.25,
-        sn_eps=1e-6,
-        sn_max_weight=50.0,
-        sn_apply_to_giou=False,
     ):
         """Creates the matcher
 
@@ -56,29 +51,10 @@ class HungarianMatcher(nn.Module):
         self.alpha = alpha
         self.gamma = gamma
 
-        # --- scale-normalized matching ---
-        self.scale_norm_bbox = scale_norm_bbox
-        self.sn_power = sn_power
-        self.sn_eps = sn_eps
-        self.sn_max_weight = sn_max_weight
-        self.sn_apply_to_giou = sn_apply_to_giou
 
         assert self.cost_class != 0 or self.cost_bbox != 0 or self.cost_giou != 0, (
             "all costs cant be 0"
         )
-
-    def _scale_norm_weight(self, tgt_bbox: torch.Tensor) -> torch.Tensor:
-        """
-        tgt_bbox: [M,4] cxcywh (normalized)
-        return:   [M] weights, larger for smaller boxes
-        """
-        w = tgt_bbox[:, 2].clamp(min=self.sn_eps)
-        h = tgt_bbox[:, 3].clamp(min=self.sn_eps)
-        area = (w * h).clamp(min=self.sn_eps)
-        sn_w = area.pow(-self.sn_power)  # area^{-p}
-        if self.sn_max_weight is not None:
-            sn_w = sn_w.clamp(max=self.sn_max_weight)
-        return sn_w
 
     @torch.no_grad()
     def forward(self, outputs: Dict[str, torch.Tensor], targets, return_topk=False):
@@ -137,22 +113,6 @@ class HungarianMatcher(nn.Module):
 
         # Compute the giou cost betwen boxes
         cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
-
-        # Compute the L1 cost between boxes
-        # cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)  # [bs*num_queries, M]
-        # if self.scale_norm_bbox:
-        #     sn_w = self._scale_norm_weight(tgt_bbox)  # [M]
-        #     cost_bbox = cost_bbox * sn_w.unsqueeze(0)  # column-wise weighting
-        #
-        # # Compute the giou cost betwen boxes
-        # cost_giou = -generalized_box_iou(
-        #     box_cxcywh_to_xyxy(out_bbox),
-        #     box_cxcywh_to_xyxy(tgt_bbox)
-        # )  # [bs*num_queries, M]
-        #
-        # if self.scale_norm_bbox and self.sn_apply_to_giou:
-        #     # 同样按列权重（一般先别开，先只改 bbox 更稳）
-        #     cost_giou = cost_giou * sn_w.unsqueeze(0)
 
         # Final cost matrix 3 * self.cost_bbox + 2 * self.cost_class + self.cost_giou
         C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou

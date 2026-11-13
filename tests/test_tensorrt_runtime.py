@@ -8,6 +8,48 @@ from tools.deployment.tensorrt_runtime import TensorRTRunner
 
 
 class ShapeInputTests(unittest.TestCase):
+    def test_budget_updates_when_detection_output_count_is_fixed(self):
+        runner = object.__new__(TensorRTRunner)
+        budget = torch.empty(1, dtype=torch.int64)
+        runner.device = torch.device('cpu')
+        runner.input_names, runner.output_names = ['budget'], ['labels']
+        runner.names = ['budget', 'labels']
+        runner.host_names, runner.shape_input_names = {'budget'}, ['budget']
+        runner.dtypes = {'budget': torch.int64, 'labels': torch.int64}
+        runner.input_shapes = {'budget': (1,)}
+        runner.buffers = {'labels': torch.empty(1, 300, dtype=torch.int64)}
+        runner.addresses = {'labels': runner.buffers['labels'].data_ptr()}
+        runner.bound_addresses = {}
+        runner.bindings = [0, runner.addresses['labels']]
+        runner.dynamic_outputs = []
+        runner.shapes = {'labels': (1, 300)}
+        runner.last_shape_values, runner.output_views, runner.stream = None, None, None
+
+        class Context:
+            shape_calls = 0
+
+            def set_tensor_address(self, name, address):
+                if name == 'budget':
+                    self.pending = budget.item()
+
+            def infer_shapes(self):
+                self.active = self.pending
+                self.shape_calls += 1
+                return []
+
+            def execute_v2(self, bindings):
+                runner.buffers['labels'].fill_(self.active)
+                return True
+
+        runner.context = Context()
+        for count in [100, 100, 500, 100]:
+            budget.fill_(count)
+            runner({'budget': budget})
+            output = runner.outputs()['labels']
+            self.assertEqual(tuple(output.shape), (1, 300))
+            self.assertTrue(torch.all(output == count).item())
+        self.assertEqual(runner.context.shape_calls, 3)
+
     def test_exact_shapes_update_with_reused_host_buffer(self):
         runner = object.__new__(TensorRTRunner)
         budget = torch.empty(1, dtype=torch.int64)
